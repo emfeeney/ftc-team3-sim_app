@@ -1,0 +1,20 @@
+{
+    "name": "HarnessReplay.Editor",
+    "rootNamespace": "PviHarness.Replay.Editor",
+    "references": [
+        "HarnessReplay",
+        "UnityEditor.TestRunner",
+        "UnityEngine.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
