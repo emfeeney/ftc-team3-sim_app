@@ -149,7 +149,7 @@
             <div class="spp-help-accordion" onclick="toggleHelpInstructions()">
               <span>📖 Need to set up your free Hugging Face backend? (Click to view guide)</span>
               <div id="spp-help-content" style="display: none; margin-top: 8px; color: #c9d1d9; line-height: 1.5; font-size: 11.5px;">
-                1. Create a free Docker Space at <b>huggingface.co/new-space</b> (CPU Basic · 16GB RAM · Free).<br>
+                1. Create a free Space at <b>huggingface.co/new-space</b> with SDK: <b>Gradio</b> (100% Free - do NOT choose Docker).<br>
                 2. Push this repo: <code>git remote add hf ... && git push hf main</code>.<br>
                 3. Paste your Space's Direct URL above (e.g. <code>https://user-ftc-sim-api.hf.space</code>).<br>
                 See <b>HUGGINGFACE_SETUP.md</b> for detailed steps.
@@ -659,3 +659,4 @@
   // Export
   window.initStartPosePicker = initModal;
 })();
+
