@@ -170,8 +170,10 @@
       <div class="controls">
         <label for="team-select" style="font-size: 13px; color: #8b949e;">Team:</label>
         <select id="team-select" title="Switch between FTC teams or view all runs">
-          <option value="team3" selected>Team 3 (BioBuzz)</option>
-          <option value="teamA">Team A (Starter Bot)</option>
+          <option value="team3" selected>Team 3 (BioBuzz) [feature/team-3-setup]</option>
+          <option value="team2">Team 2 [Team2-Robot-Code]</option>
+          <option value="team4">Team 4 [Team_4_Branch]</option>
+          <option value="teamA">Team A (Starter Bot) [master]</option>
           <option value="all">🌐 All Teams & Runs</option>
         </select>
 
@@ -396,6 +398,22 @@
             { value: "auto-Team3AutoOpMode.json", text: "Team3AutoOpMode" },
             { value: "auto-Team3TempStrafeRight8AutoOpMode.json", text: "Team3TempStrafeRight8AutoOpMode" },
             { value: "auto-Team3WebcamTestAutoOpMode.json", text: "Team3WebcamTestAutoOpMode" }
+          ]
+        },
+        team2: {
+          name: "Team 2",
+          badge: "Team 2 WebGL",
+          branch: "Team2-Robot-Code",
+          runs: [
+            { value: "auto-Team3AutonomousOpMode.json", text: "Team 2 Autonomous (Simulated Specimen)" }
+          ]
+        },
+        team4: {
+          name: "Team 4",
+          badge: "Team 4 WebGL",
+          branch: "Team_4_Branch",
+          runs: [
+            { value: "auto-Team3AutoOpMode.json", text: "Team 4 Autonomous (Simulated Sample)" }
           ]
         },
         teamA: {

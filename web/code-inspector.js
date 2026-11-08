@@ -8,15 +8,17 @@
 
   const FALLBACK_BRANCHES = [
     "feature/team-3-setup",
-    "master",
     "Team2-Robot-Code",
+    "team-2-pedro-3-implementation",
     "Team_4_Branch",
     "TeamA_TeleOp_Update",
     "TeamA-Mini1-Basic-Auto",
     "Pedro-3-Implementation",
+    "PedroPathingSetup2.0",
     "HeadingControl",
     "VI_Arena-Harness",
-    "codex/Vision"
+    "codex/Vision",
+    "master"
   ];
 
   const PRESET_FILES = {

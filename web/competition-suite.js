@@ -403,3 +403,4 @@
   window.calculateStressImpact = calculateStressImpact;
   window.printScoutingCard = printScoutingCard;
 })();
+

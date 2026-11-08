@@ -9,6 +9,14 @@ on:
       branch:
         description: 'Upstream branch from PVI-FTC/ftc-robot-framework to sync'
         required: true
+        type: choice
+        options:
+          - feature/team-3-setup
+          - Team2-Robot-Code
+          - team-2-pedro-3-implementation
+          - Team_4_Branch
+          - TeamA-Mini1-Basic-Auto
+          - master
         default: 'feature/team-3-setup'
 
 jobs:
