@@ -8,8 +8,9 @@
   <!-- Prism Syntax Highlighting -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
-  <!-- Code Inspector -->
+  <!-- Code Inspector & Competition Suite -->
   <link rel="stylesheet" href="../code-inspector.css" />
+  <link rel="stylesheet" href="../competition-suite.css" />
   <style>
     * {
       box-sizing: border-box;
@@ -196,6 +197,7 @@
           <input type="file" id="file-input" accept=".json" style="display: none;">
         </label>
 
+        <button id="btn-comp-suite" class="comp-suite-btn" onclick="openCompetitionSuite()" title="Match Preparation & Competition Tools">🏆 Match Strategy</button>
         <button id="btn-view-code" class="code-inspector-btn" onclick="openCurrentOpModeCode()" title="View and inspect robot source code from GitHub branches">💻 Robot Code & Branches</button>
         <button id="btn-fullscreen" title="Fullscreen">⛶ Fullscreen</button>
       </div>
@@ -594,5 +596,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
   <!-- Code Inspector Script -->
   <script src="../code-inspector.js"></script>
+  <!-- Competition & Match Strategy Suite -->
+  <script src="../competition-suite.js"></script>
 </body>
 </html>
