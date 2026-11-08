@@ -191,13 +191,15 @@
 
         <button id="btn-view-code" class="code-inspector-btn" onclick="openCurrentOpModeCode()" title="View and inspect robot source code from GitHub branches">💻 Robot Code & Branches</button>
         <button id="btn-fullscreen" title="Fullscreen">⛶ Fullscreen</button>
-        <button onclick="window.location.href='../index.html'" title="Switch to 2D Swing Viewer">2D Swing Viewer ↗</button>
       </div>
     </div>
 
     <div id="viewport-container">
       <canvas id="unity-canvas" tabindex="-1"></canvas>
       <div id="drop-hint">Drop .json recording here to replay</div>
+      <div id="web-mode-pill" style="display: none; position: absolute; background: #0b0e12; border: 1px solid #222931; border-radius: 4px; z-index: 15; pointer-events: auto; box-sizing: border-box; text-align: center; cursor: default;" title="Running in WebGL Autonomous Simulation Mode">
+        <span style="color: #7a858f; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; height: 100%; letter-spacing: 0.5px;">⚡ WEB REPLAY MODE</span>
+      </div>
 
       <div id="loading-overlay">
         <div class="spinner"></div>
@@ -262,6 +264,16 @@
           } catch(e) {}
         }
       }
+
+      // Position the Web Mode pill seamlessly over the desktop-only socket buttons
+      const pill = document.querySelector("#web-mode-pill");
+      if (pill) {
+        pill.style.display = "block";
+        pill.style.top = ((100 / canvas.height) * 100) + "%";
+        pill.style.height = ((24 / canvas.height) * 100) + "%";
+        pill.style.right = (((16 + 330 + 8) / canvas.width) * 100) + "%";
+        pill.style.width = (((200 + 8 + 190) / canvas.width) * 100) + "%";
+      }
     }
 
     // Set initial resolution before Unity initializes
@@ -273,6 +285,16 @@
         updateCanvasScale();
       });
     }
+
+    // Block desktop-only socket trigger keys (L: Live Mode, U: Live Physics) in WebGL
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "l" || e.key === "L" || e.key === "u" || e.key === "U") {
+        const modal = document.querySelector("#code-inspector-modal");
+        if (!modal || !modal.classList.contains("active")) {
+          e.stopPropagation();
+        }
+      }
+    }, true);
 
     const bundledRecordings = [
       "auto-Team3PedroPilotAutoOpMode.json",

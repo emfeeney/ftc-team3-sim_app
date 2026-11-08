@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FTC Test Harness — Original Viewer (CheerpJ WebAssembly JVM)</title>
+  <script>
+    // Redirect visitors immediately to the primary 3D WebGL simulator
+    if (!window.location.search.includes("cheerpj=true")) {
+      window.location.replace("vi_arena/index.html");
+    }
+  </script>
   <!-- Prism Syntax Highlighting -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
