@@ -53,11 +53,11 @@ cd "${REPO_ROOT}/th_src"
 chmod +x ./gradlew
 
 launch_java_viewer() {
-  echo "[web-wrapper] Pre-compiling viewer and harness classes..."
-  ./gradlew viewerClasses classes agentJar --no-daemon
-  echo "[web-wrapper] Launching original Java Swing viewer (./gradlew viewRecording)..."
+  mkdir -p "${REPO_ROOT}/th_src/build/recordings"
+  cp -n "${REPO_ROOT}/web/build/recordings/"*.json "${REPO_ROOT}/th_src/build/recordings/" 2>/dev/null || true
+  echo "[web-wrapper] Launching original Java Swing viewer (pvi.harness.viewer.RecordingViewer)..."
   while true; do
-    ./gradlew viewRecording --no-daemon || true
+    java -javaagent:"${REPO_ROOT}/web/build/agent/harness-agent.jar" -jar "${REPO_ROOT}/web/harness-viewer.jar" || true
     echo "[web-wrapper] Viewer window closed; restarting in 2s..."
     sleep 2
   done

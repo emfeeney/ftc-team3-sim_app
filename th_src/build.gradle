@@ -471,8 +471,7 @@ def webViewerJar = tasks.register('webViewerJar', Jar) {
     from({
         sourceSets.viewer.runtimeClasspath.filter { it.name.startsWith('android-all-') }.collect { zipTree(it) }
     }) {
-        include 'android/os/**', 'android/util/**', 'android/graphics/**', 'android/content/**',
-                'android/hardware/**', 'android/annotation/**', 'android/view/**', 'org/json/**'
+        include 'android/**', 'org/json/**', 'dalvik/**'
         exclude 'META-INF/**'
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
