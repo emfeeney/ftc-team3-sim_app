@@ -1,0 +1,376 @@
+/* ===========================================================================
+   Code Inspector Styles for VI_Arena & FTC Web Viewer
+   Displays live-synced FTC Java code from GitHub branches
+   =========================================================================== */
+
+#code-inspector-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  justify-content: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+#code-inspector-modal.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ci-drawer {
+  width: min(850px, 92vw);
+  height: 100%;
+  background: #0d1117;
+  border-left: 1px solid #30363d;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.6);
+  color: #e6edf3;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#code-inspector-modal.active .ci-drawer {
+  transform: translateX(0);
+}
+
+/* Header */
+.ci-header {
+  padding: 12px 18px;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.ci-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ci-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #f0f6fc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ci-repo-badge {
+  background: #1f242c;
+  color: #58a6ff;
+  border: 1px solid #30363d;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.ci-repo-badge:hover {
+  background: #388bfd22;
+  border-color: #58a6ff;
+}
+
+.ci-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ci-close-btn {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.ci-close-btn:hover {
+  color: #f0f6fc;
+  background: #21262d;
+}
+
+/* Branch & Sync Bar */
+.ci-branch-bar {
+  padding: 10px 18px;
+  background: #090c10;
+  border-bottom: 1px solid #21262d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.ci-branch-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ci-branch-selector label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ci-select {
+  background: #161b22;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.ci-select:focus {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+}
+
+.ci-btn {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.ci-btn:hover {
+  background: #30363d;
+  color: #f0f6fc;
+  border-color: #8b949e;
+}
+
+.ci-btn-primary {
+  background: #238636;
+  border-color: #2ea043;
+  color: #ffffff;
+}
+
+.ci-btn-primary:hover {
+  background: #2ea043;
+  border-color: #3fb950;
+  color: #ffffff;
+}
+
+.ci-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #3fb950;
+  font-weight: 600;
+}
+
+.ci-pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #3fb950;
+  border-radius: 50%;
+  animation: ci-pulse 1.8s infinite;
+}
+
+@keyframes ci-pulse {
+  0% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.7); }
+  70% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 6px rgba(63, 185, 80, 0); }
+  100% { transform: scale(0.95); opacity: 0.8; box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+}
+
+/* Commit Details Bar */
+.ci-commit-bar {
+  padding: 8px 18px;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  font-size: 11.5px;
+  color: #8b949e;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.ci-commit-msg {
+  color: #c9d1d9;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 580px;
+}
+
+.ci-commit-sha {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(110, 118, 129, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #58a6ff;
+  font-size: 11px;
+}
+
+/* Navigation Tabs */
+.ci-nav-bar {
+  padding: 8px 18px 0 18px;
+  background: #0d1117;
+  border-bottom: 1px solid #21262d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.ci-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.ci-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #8b949e;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ci-tab:hover {
+  color: #c9d1d9;
+}
+
+.ci-tab.active {
+  color: #58a6ff;
+  border-bottom-color: #58a6ff;
+}
+
+.ci-file-dropdown-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+
+.ci-file-select {
+  max-width: 300px;
+}
+
+/* File Actions Bar */
+.ci-file-bar {
+  padding: 8px 18px;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.ci-current-file-path {
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #c9d1d9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ci-file-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Code Display Area */
+.ci-code-viewport {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  background: #0d1117;
+}
+
+.ci-loading-spinner {
+  position: absolute;
+  inset: 0;
+  background: rgba(13, 17, 23, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #8b949e;
+  z-index: 20;
+}
+
+.ci-error-banner {
+  margin: 20px;
+  padding: 14px 18px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  border-radius: 6px;
+  color: #ff7b72;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+pre[class*="language-"] {
+  margin: 0 !important;
+  padding: 16px 18px !important;
+  background: transparent !important;
+  font-size: 12.5px !important;
+  line-height: 1.55 !important;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace !important;
+}
+
+code[class*="language-"] {
+  font-family: inherit !important;
+}
+
+/* Code Inspector Trigger Button */
+.code-inspector-btn {
+  background: #1f6feb !important;
+  border-color: #388bfd !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.code-inspector-btn:hover {
+  background: #388bfd !important;
+  color: #ffffff !important;
+}
+

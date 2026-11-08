@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FTC Test Harness — Original Viewer (CheerpJ WebAssembly JVM)</title>
+  <!-- Prism Syntax Highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+  <!-- Code Inspector -->
+  <link rel="stylesheet" href="code-inspector.css" />
   <!-- CheerpJ 3.0 WebAssembly JVM Loader -->
   <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
   <style>
@@ -89,6 +94,7 @@
   </style>
 </head>
 <body>
+  <button id="btn-view-code" class="code-inspector-btn" style="position: fixed; top: 12px; right: 290px; z-index: 1000; padding: 8px 14px; border-radius: 6px; cursor: pointer;" onclick="openCodeInspector()" title="View and inspect robot source code from GitHub branches">💻 Robot Code & Branches</button>
   <a id="switch-3d-btn" href="vi_arena/index.html">🎮 Launch 3D VI_Arena Replay ↗</a>
   <div id="loading-overlay">
     <div class="spinner"></div>
@@ -160,5 +166,11 @@
 
     window.addEventListener('DOMContentLoaded', launchOriginalViewer);
   </script>
+  <!-- Prism Syntax Highlighting -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+  <!-- Code Inspector Script -->
+  <script src="code-inspector.js"></script>
 </body>
 </html>

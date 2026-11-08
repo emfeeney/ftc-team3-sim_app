@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VI_Arena — 3D FTC Simulation & Autonomous Replay</title>
   <link rel="shortcut icon" href="TemplateData/favicon.ico">
+  <!-- Prism Syntax Highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+  <!-- Code Inspector -->
+  <link rel="stylesheet" href="../code-inspector.css" />
   <style>
     * {
       box-sizing: border-box;
@@ -176,6 +181,7 @@
           <input type="file" id="file-input" accept=".json" style="display: none;">
         </label>
 
+        <button id="btn-view-code" class="code-inspector-btn" onclick="openCurrentOpModeCode()" title="View and inspect robot source code from GitHub branches">💻 Robot Code & Branches</button>
         <button id="btn-fullscreen" title="Fullscreen">⛶ Fullscreen</button>
         <button onclick="window.location.href='../index.html'" title="Switch to 2D Swing Viewer">2D Swing Viewer ↗</button>
       </div>
@@ -365,6 +371,31 @@
       };
       reader.readAsArrayBuffer(file);
     }
+
+    function openCurrentOpModeCode() {
+      const val = recordingSelect.value || "";
+      let targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/Team3TeleOp.java";
+      if (val.includes("PedroPilot")) {
+        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3PedroPilotAutoOpMode.java";
+      } else if (val.includes("AutonomousOpMode")) {
+        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutonomousOpMode.java";
+      } else if (val.includes("AutoOpMode")) {
+        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutoOpMode.java";
+      } else if (val.includes("TempStrafeRight8")) {
+        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3TempStrafeRight8AutoOpMode.java";
+      } else if (val.includes("WebcamTest")) {
+        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3WebcamTestAutoOpMode.java";
+      }
+      if (window.openCodeInspector) {
+        window.openCodeInspector(targetPath, "feature/team-3-setup");
+      }
+    }
   </script>
+  <!-- Prism Syntax Highlighting -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+  <!-- Code Inspector Script -->
+  <script src="../code-inspector.js"></script>
 </body>
 </html>
