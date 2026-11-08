@@ -31,13 +31,13 @@
       height: 100vh;
     }
     #top-bar {
-      height: 48px;
+      height: 56px;
       background: #161b22;
       border-bottom: 1px solid #30363d;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 16px;
+      padding: 0 18px;
       z-index: 10;
       flex-shrink: 0;
     }
@@ -46,30 +46,30 @@
       align-items: center;
       gap: 10px;
       font-weight: 600;
-      font-size: 14px;
+      font-size: 15px;
       letter-spacing: 0.5px;
     }
     .badge {
       background: #238636;
       color: #fff;
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 700;
-      padding: 2px 6px;
+      padding: 3px 8px;
       border-radius: 4px;
       text-transform: uppercase;
     }
     .controls {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
     select, button, .file-btn {
       background: #21262d;
       color: #c9d1d9;
       border: 1px solid #363b42;
       border-radius: 6px;
-      padding: 6px 12px;
-      font-size: 12px;
+      padding: 7px 14px;
+      font-size: 13.5px;
       font-weight: 500;
       cursor: pointer;
       display: inline-flex;
@@ -83,7 +83,7 @@
       color: #f0f6fc;
     }
     select {
-      max-width: 280px;
+      max-width: 360px;
       outline: none;
     }
     #viewport-container {
@@ -167,13 +167,21 @@
       </div>
 
       <div class="controls">
-        <label for="recording-select" style="font-size: 12px; color: #8b949e;">Autonomous Run:</label>
+        <label for="recording-select" style="font-size: 13px; color: #8b949e;">Autonomous:</label>
         <select id="recording-select">
           <option value="auto-Team3PedroPilotAutoOpMode.json">Team3PedroPilotAutoOpMode (Pedro Pathing)</option>
           <option value="auto-Team3AutonomousOpMode.json">Team3AutonomousOpMode (Score Specimen)</option>
           <option value="auto-Team3AutoOpMode.json">Team3AutoOpMode</option>
           <option value="auto-Team3TempStrafeRight8AutoOpMode.json">Team3TempStrafeRight8AutoOpMode</option>
           <option value="auto-Team3WebcamTestAutoOpMode.json">Team3WebcamTestAutoOpMode</option>
+        </select>
+
+        <label for="scale-select" style="font-size: 13px; color: #8b949e; margin-left: 4px;">UI Zoom:</label>
+        <select id="scale-select" title="Change simulation UI scale for better readability">
+          <option value="large" selected>🔍 UI: Large (150%)</option>
+          <option value="medium">🔍 UI: Medium (125%)</option>
+          <option value="compact">🔍 UI: Compact (100%)</option>
+          <option value="native">🔍 UI: 1:1 Native</option>
         </select>
 
         <label class="file-btn">
@@ -209,9 +217,62 @@
     const progressFill = document.querySelector("#progress-fill");
     const statusText = document.querySelector("#status-text");
     const recordingSelect = document.querySelector("#recording-select");
+    const scaleSelect = document.querySelector("#scale-select");
     const fileInput = document.querySelector("#file-input");
     const dropHint = document.querySelector("#drop-hint");
     let globalUnityInstance = null;
+
+    // Load saved scale preference if present
+    const savedScale = localStorage.getItem("vi_arena_ui_scale");
+    if (savedScale && scaleSelect) {
+      scaleSelect.value = savedScale;
+    }
+
+    function updateCanvasScale() {
+      const viewport = document.querySelector("#viewport-container");
+      if (!viewport) return;
+      const w = viewport.clientWidth;
+      const h = viewport.clientHeight;
+      if (w <= 0 || h <= 0) return;
+
+      const mode = scaleSelect ? scaleSelect.value : "large";
+
+      let targetHeight = 780; // Large (150% UI size - very legible)
+      if (mode === "medium") {
+        targetHeight = 920;   // Medium (125% UI size)
+      } else if (mode === "compact") {
+        targetHeight = 1080;  // Compact (100% UI size)
+      } else if (mode === "native") {
+        targetHeight = Math.round(h * (window.devicePixelRatio || 1));
+      }
+
+      let targetWidth;
+      if (mode === "native") {
+        targetWidth = Math.round(w * (window.devicePixelRatio || 1));
+      } else {
+        targetWidth = Math.max(960, Math.round(targetHeight * (w / h)));
+      }
+
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        if (globalUnityInstance && globalUnityInstance.Module && globalUnityInstance.Module.setCanvasSize) {
+          try {
+            globalUnityInstance.Module.setCanvasSize(targetWidth, targetHeight);
+          } catch(e) {}
+        }
+      }
+    }
+
+    // Set initial resolution before Unity initializes
+    updateCanvasScale();
+    window.addEventListener("resize", updateCanvasScale);
+    if (scaleSelect) {
+      scaleSelect.addEventListener("change", (e) => {
+        localStorage.setItem("vi_arena_ui_scale", e.target.value);
+        updateCanvasScale();
+      });
+    }
 
     const bundledRecordings = [
       "auto-Team3PedroPilotAutoOpMode.json",
@@ -230,6 +291,7 @@
     }
 
     const config = {
+      matchWebGLToCanvasSize: false,
       arguments: [
         "-recordings", "/recordings",
         "-fields", "/fields",
