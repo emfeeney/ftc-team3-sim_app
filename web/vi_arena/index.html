@@ -11,6 +11,7 @@
   <!-- Code Inspector & Competition Suite -->
   <link rel="stylesheet" href="../code-inspector.css" />
   <link rel="stylesheet" href="../competition-suite.css" />
+  <link rel="stylesheet" href="../start-pose-picker.css" />
   <style>
     * {
       box-sizing: border-box;
@@ -131,6 +132,17 @@
       background: #30363d;
       border-color: #8b949e;
       color: #f0f6fc;
+    }
+    .start-pose-btn {
+      background: linear-gradient(135deg, rgba(88, 166, 255, 0.15), rgba(56, 139, 253, 0.25));
+      border: 1px solid #388bfd;
+      color: #79c0ff;
+      font-weight: 600;
+    }
+    .start-pose-btn:hover {
+      background: linear-gradient(135deg, rgba(88, 166, 255, 0.3), rgba(56, 139, 253, 0.45));
+      border-color: #58a6ff;
+      color: #ffffff;
     }
     select {
       max-width: 360px;
@@ -256,6 +268,7 @@
           <input type="file" id="file-input" accept=".json" style="display: none;">
         </label>
 
+        <button id="btn-start-pose" class="start-pose-btn" onclick="openStartPoseModal()" title="Place robot at custom position and heading before autonomous">🎯 <span class="btn-text-optional">Start Pose</span></button>
         <button id="btn-comp-suite" class="comp-suite-btn" onclick="openCompetitionSuite()" title="Match preparation and competition tools">🏆 Match Strategy</button>
         <button id="btn-view-code" class="code-inspector-btn" onclick="openCurrentOpModeCode()" title="View robot source code from GitHub branches">💻 Robot Code</button>
         <button id="btn-fullscreen" title="Fullscreen">⛶ <span class="btn-text-optional">Fullscreen</span></button>
@@ -673,5 +686,7 @@
   <script src="../code-inspector.js"></script>
   <!-- Competition & Match Strategy Suite -->
   <script src="../competition-suite.js"></script>
+  <!-- Start Pose Picker & Live Simulation -->
+  <script src="../start-pose-picker.js"></script>
 </body>
 </html>

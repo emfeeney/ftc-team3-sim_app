@@ -1,6 +1,10 @@
 # Files git should not track in the test harness. All of these are created by tools and can be
 # rebuilt at any time, so committing them would only clutter the repository.
 
+# Operating system files
+.DS_Store
+Thumbs.db
+
 # --- th_src: the Java test harness ---------------------------------------------------------
 # Gradle's working files and caches
 .gradle/

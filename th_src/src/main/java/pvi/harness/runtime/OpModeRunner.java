@@ -117,7 +117,23 @@ public class OpModeRunner {
         WheelReader wheels = WheelReader.fromConfig(settings);
         java.util.List<String> missing = wheels.missingMotors(hardwareMap);
         if (missing.isEmpty()) {
-            positionEstimator = new PoseEstimator(DriveModels.fromConfig(settings), wheels, Pose.ORIGIN);
+            Pose startPose = Pose.ORIGIN;
+            String sysPose = System.getProperty("sim.startPose");
+            if (sysPose == null || sysPose.isBlank()) {
+                sysPose = System.getenv("SIM_START_POSE");
+            }
+            if (sysPose != null && !sysPose.isBlank()) {
+                String[] parts = sysPose.split(",");
+                if (parts.length >= 3) {
+                    try {
+                        double x = Double.parseDouble(parts[0].trim());
+                        double y = Double.parseDouble(parts[1].trim());
+                        double h = Math.toRadians(Double.parseDouble(parts[2].trim()));
+                        startPose = Pose.inches(x, y, h);
+                    } catch (Exception ignored) {}
+                }
+            }
+            positionEstimator = new PoseEstimator(DriveModels.fromConfig(settings), wheels, startPose);
         } else {
             untrackedReason = "the fake robot has no drive motor(s) " + missing;
         }
@@ -126,6 +142,16 @@ public class OpModeRunner {
     }
 
     // ---- Setup ----------------------------------------------------------------
+
+    /** Sets an explicit starting position and heading for this run. Returns this runner for chaining. */
+    public OpModeRunner startAt(Pose startPose) {
+        if (startPose != null && positionEstimator != null) {
+            HarnessConfig settings = hardwareMap.settings();
+            WheelReader wheels = WheelReader.fromConfig(settings);
+            this.positionEstimator = new PoseEstimator(DriveModels.fromConfig(settings), wheels, startPose);
+        }
+        return this;
+    }
 
     /** Gives gamepad 1 (the driver) a script to follow. Returns this runner for chaining. */
     public OpModeRunner gamepad1(GamepadScript script) {

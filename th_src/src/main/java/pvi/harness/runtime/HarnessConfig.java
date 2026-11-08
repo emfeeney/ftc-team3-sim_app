@@ -64,7 +64,7 @@ public final class HarnessConfig {
     private static final Set<String> KNOWN_KEYS = Set.of(
             "config.version", "teamCode.sourceDir", "teamCode.opModePackages", "host.dependenciesFile",
             "host.skipLibraries",
-            "robot.name", "drive.frontLeft", "drive.frontRight", "drive.rearLeft", "drive.rearRight", "pinpoint",
+            "robot.name", "robot.branch", "drive.frontLeft", "drive.frontRight", "drive.rearLeft", "drive.rearRight", "pinpoint",
             "hardware.otherMotors", "hardware.servos", "devices.imu", "devices.crServos", "devices.distanceSensors",
             "devices.touchSensors", "devices.colorSensors", "devices.analogInputs", "devices.otos",
             "devices.limelights", "devices.webcams", "devices.blinkers", "devices.deadWheels",
