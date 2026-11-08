@@ -317,11 +317,32 @@ public final class MomentumPhysics implements PhysicsBackend {
         double dForward = (target.forwardInchesPerSecond() - now.forwardInchesPerSecond()) * share;
         double dLeft = (target.leftInchesPerSecond() - now.leftInchesPerSecond()) * share;
         double dTurn = (target.counterClockwiseRadiansPerSecond() - now.counterClockwiseRadiansPerSecond()) * share;
+
+        // When powered against current motion (active counter-braking), mechanical friction assists deceleration.
+        if (d.forwardCoast().value() > 0.0 && Math.abs(now.forwardInchesPerSecond()) > 1e-3
+                && Math.signum(target.forwardInchesPerSecond() - now.forwardInchesPerSecond()) == -Math.signum(now.forwardInchesPerSecond())) {
+            double assist = Math.min(Math.abs(dForward), 0.35 * d.forwardCoast().value() * seconds);
+            dForward += Math.signum(dForward) * assist;
+        }
+        if (d.lateralCoast().value() > 0.0 && Math.abs(now.leftInchesPerSecond()) > 1e-3
+                && Math.signum(target.leftInchesPerSecond() - now.leftInchesPerSecond()) == -Math.signum(now.leftInchesPerSecond())) {
+            double assist = Math.min(Math.abs(dLeft), 0.35 * d.lateralCoast().value() * seconds);
+            dLeft += Math.signum(dLeft) * assist;
+        }
+
         // ...but the tires can only take so much before they slip.
-        double change = Math.sqrt(dForward * dForward + dLeft * dLeft + (dTurn * lever) * (dTurn * lever));
-        double limit = d.maxAcceleration().value() * seconds;
-        if (change > limit) {
-            double scale = limit / change;
+        // Mecanum angled rollers have lower lateral traction than longitudinal tread grip.
+        double maxForwardDelta = d.maxAcceleration().value() * seconds;
+        double strafeGripRatio = model.forwardInchesPerSecond() > 1e-6
+                ? Math.max(0.55, Math.min(1.0, 0.5 * (1.0 + model.strafeInchesPerSecond() / model.forwardInchesPerSecond())))
+                : 1.0;
+        double maxLeftDelta = maxForwardDelta * strafeGripRatio;
+        double normF = dForward / Math.max(1e-9, maxForwardDelta);
+        double normL = dLeft / Math.max(1e-9, maxLeftDelta);
+        double normT = (dTurn * lever) / Math.max(1e-9, maxForwardDelta);
+        double normMag = Math.sqrt(normF * normF + normL * normL + normT * normT);
+        if (normMag > 1.0) {
+            double scale = 1.0 / normMag;
             dForward *= scale;
             dLeft *= scale;
             dTurn *= scale;
