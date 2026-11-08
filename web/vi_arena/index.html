@@ -163,11 +163,18 @@
     <div id="top-bar">
       <div class="brand">
         <span>VI_Arena 3D</span>
-        <span class="badge">Team 3 WebGL</span>
+        <span class="badge" id="team-badge">Team 3 WebGL</span>
       </div>
 
       <div class="controls">
-        <label for="recording-select" style="font-size: 13px; color: #8b949e;">Autonomous:</label>
+        <label for="team-select" style="font-size: 13px; color: #8b949e;">Team:</label>
+        <select id="team-select" title="Switch between FTC teams or view all runs">
+          <option value="team3" selected>Team 3 (BioBuzz)</option>
+          <option value="teamA">Team A (Starter Bot)</option>
+          <option value="all">🌐 All Teams & Runs</option>
+        </select>
+
+        <label for="recording-select" style="font-size: 13px; color: #8b949e; margin-left: 4px;">Autonomous:</label>
         <select id="recording-select">
           <option value="auto-Team3PedroPilotAutoOpMode.json">Team3PedroPilotAutoOpMode (Pedro Pathing)</option>
           <option value="auto-Team3AutonomousOpMode.json">Team3AutonomousOpMode (Score Specimen)</option>
@@ -219,6 +226,8 @@
     const progressFill = document.querySelector("#progress-fill");
     const statusText = document.querySelector("#status-text");
     const recordingSelect = document.querySelector("#recording-select");
+    const teamSelect = document.querySelector("#team-select");
+    const teamBadge = document.querySelector("#team-badge");
     const scaleSelect = document.querySelector("#scale-select");
     const fileInput = document.querySelector("#file-input");
     const dropHint = document.querySelector("#drop-hint");
@@ -301,7 +310,8 @@
       "auto-Team3AutonomousOpMode.json",
       "auto-Team3AutoOpMode.json",
       "auto-Team3TempStrafeRight8AutoOpMode.json",
-      "auto-Team3WebcamTestAutoOpMode.json"
+      "auto-Team3WebcamTestAutoOpMode.json",
+      "auto-TeamAAutoOpMode.json"
     ];
 
     const bundledFields = [
@@ -373,6 +383,69 @@
       globalUnityInstance = instance;
       overlay.classList.add("hidden");
 
+      const teamProfiles = {
+        team3: {
+          name: "Team 3 (BioBuzz)",
+          badge: "Team 3 WebGL",
+          branch: "feature/team-3-setup",
+          runs: [
+            { value: "auto-Team3PedroPilotAutoOpMode.json", text: "Team3PedroPilotAutoOpMode (Pedro Pathing)" },
+            { value: "auto-Team3AutonomousOpMode.json", text: "Team3AutonomousOpMode (Score Specimen)" },
+            { value: "auto-Team3AutoOpMode.json", text: "Team3AutoOpMode" },
+            { value: "auto-Team3TempStrafeRight8AutoOpMode.json", text: "Team3TempStrafeRight8AutoOpMode" },
+            { value: "auto-Team3WebcamTestAutoOpMode.json", text: "Team3WebcamTestAutoOpMode" }
+          ]
+        },
+        teamA: {
+          name: "Team A (Starter Bot)",
+          badge: "Team A WebGL",
+          branch: "master",
+          runs: [
+            { value: "auto-TeamAAutoOpMode.json", text: "TeamAAutoOpMode (Autonomous Demo)" }
+          ]
+        }
+      };
+
+      function renderTeamRuns(teamKey, autoPlayFirst = true) {
+        if (!recordingSelect) return;
+        recordingSelect.innerHTML = "";
+
+        let runsToRender = [];
+        if (teamKey === "all") {
+          if (teamBadge) teamBadge.textContent = "All Teams WebGL";
+          for (const [key, profile] of Object.entries(teamProfiles)) {
+            profile.runs.forEach(r => {
+              const tag = key === "team3" ? "[Team 3]" : key === "teamA" ? "[Team A]" : `[${profile.name}]`;
+              runsToRender.push({ value: r.value, text: `${tag} ${r.text}` });
+            });
+          }
+        } else if (teamProfiles[teamKey]) {
+          const profile = teamProfiles[teamKey];
+          if (teamBadge) teamBadge.textContent = profile.badge;
+          runsToRender = [...profile.runs];
+        }
+
+        runsToRender.forEach(r => {
+          const opt = document.createElement("option");
+          opt.value = r.value;
+          opt.textContent = r.text;
+          recordingSelect.appendChild(opt);
+        });
+
+        if (runsToRender.length > 0 && autoPlayFirst && globalUnityInstance) {
+          openRecording("/recordings/" + runsToRender[0].value);
+        }
+      }
+
+      if (teamSelect) {
+        teamSelect.addEventListener("change", (e) => {
+          renderTeamRuns(e.target.value, true);
+        });
+      }
+
+      // Initial populate
+      renderTeamRuns(teamSelect ? teamSelect.value : "team3", false);
+
       // Setup fullscreen
       document.querySelector("#btn-fullscreen").onclick = () => {
         instance.SetFullscreen(1);
@@ -436,6 +509,33 @@
             module.FS.writeFile(vPath, content);
           }
 
+          // Inspect header to detect team name
+          try {
+            const previewText = new TextDecoder().decode(content.slice(0, 4096));
+            let teamName = "Custom Robot";
+            const driveModelMatch = previewText.match(/"driveModel"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/);
+            if (driveModelMatch) {
+              teamName = driveModelMatch[1];
+            } else {
+              const opModeMatch = previewText.match(/"opMode"\s*:\s*"([^"]+)"/);
+              if (opModeMatch) teamName = opModeMatch[1].replace(/Auto(OpMode)?$/, "");
+            }
+
+            if (teamSelect) {
+              let customOpt = Array.from(teamSelect.options).find(o => o.text.includes(teamName));
+              if (!customOpt) {
+                customOpt = document.createElement("option");
+                customOpt.value = "custom_" + Date.now();
+                customOpt.textContent = `📁 ${teamName}`;
+                teamSelect.appendChild(customOpt);
+              }
+              teamSelect.value = customOpt.value;
+            }
+            if (teamBadge) teamBadge.textContent = `${teamName} WebGL`;
+          } catch(headerErr) {
+            console.warn("Could not parse team header:", headerErr);
+          }
+
           // Add to dropdown if not present
           let opt = Array.from(recordingSelect.options).find(o => o.value === file.name);
           if (!opt) {
@@ -458,20 +558,33 @@
 
     function openCurrentOpModeCode() {
       const val = recordingSelect.value || "";
+      const currentTeam = teamSelect ? teamSelect.value : "team3";
+      let branch = "feature/team-3-setup";
       let targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/Team3TeleOp.java";
-      if (val.includes("PedroPilot")) {
-        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3PedroPilotAutoOpMode.java";
-      } else if (val.includes("AutonomousOpMode")) {
-        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutonomousOpMode.java";
-      } else if (val.includes("AutoOpMode")) {
-        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutoOpMode.java";
-      } else if (val.includes("TempStrafeRight8")) {
-        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3TempStrafeRight8AutoOpMode.java";
-      } else if (val.includes("WebcamTest")) {
-        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3WebcamTestAutoOpMode.java";
+
+      if (currentTeam === "teamA" || val.includes("TeamA")) {
+        branch = "master";
+        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/TeamAAutoOpMode.java";
+      } else if (currentTeam === "team2" || val.includes("Team2")) {
+        branch = "Team2-Robot-Code";
+      } else if (currentTeam === "team4" || val.includes("Team4")) {
+        branch = "Team_4_Branch";
+      } else {
+        if (val.includes("PedroPilot")) {
+          targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3PedroPilotAutoOpMode.java";
+        } else if (val.includes("AutonomousOpMode")) {
+          targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutonomousOpMode.java";
+        } else if (val.includes("AutoOpMode")) {
+          targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutoOpMode.java";
+        } else if (val.includes("TempStrafeRight8")) {
+          targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3TempStrafeRight8AutoOpMode.java";
+        } else if (val.includes("WebcamTest")) {
+          targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3WebcamTestAutoOpMode.java";
+        }
       }
+
       if (window.openCodeInspector) {
-        window.openCodeInspector(targetPath, "feature/team-3-setup");
+        window.openCodeInspector(targetPath, branch);
       }
     }
   </script>
