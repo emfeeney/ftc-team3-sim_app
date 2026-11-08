@@ -11,8 +11,8 @@
 set -e
 
 export DISPLAY="${DISPLAY:-:99}"
-SCREEN_WIDTH="${SCREEN_WIDTH:-1600}"
-SCREEN_HEIGHT="${SCREEN_HEIGHT:-1000}"
+SCREEN_WIDTH="${SCREEN_WIDTH:-1280}"
+SCREEN_HEIGHT="${SCREEN_HEIGHT:-860}"
 SCREEN_DEPTH="${SCREEN_DEPTH:-24}"
 VNC_PORT="${VNC_PORT:-5900}"
 NOVNC_PORT="${NOVNC_PORT:-6080}"
@@ -30,34 +30,48 @@ pkill -9 -f "websockify.*${NOVNC_PORT}" 2>/dev/null || true
 rm -f "/tmp/.X${DISPLAY#:}-lock" "/tmp/.X11-unix/X${DISPLAY#:}"
 
 echo "[web-wrapper] Starting virtual display ${DISPLAY} (${SCREEN_WIDTH}x${SCREEN_HEIGHT}x${SCREEN_DEPTH})..."
-Xvfb "${DISPLAY}" -screen 0 "${SCREEN_WIDTH}x${SCREEN_HEIGHT}x${SCREEN_DEPTH}" -ac +extension GLX +render -noreset &
+Xvfb "${DISPLAY}" -screen 0 "${SCREEN_WIDTH}x${SCREEN_HEIGHT}x${SCREEN_DEPTH}" -ac +extension GLX +extension MIT-SHM +render -noreset &
 sleep 1
+
+mkdir -p ~/.fluxbox
+cat > ~/.fluxbox/apps << 'EOF'
+[app] (title=FTC Test Harness.*)
+  [Maximized] {yes}
+[end]
+EOF
 
 echo "[web-wrapper] Starting Fluxbox window manager..."
 fluxbox -display "${DISPLAY}" >/dev/null 2>&1 &
 sleep 1
 
-echo "[web-wrapper] Starting x11vnc on port ${VNC_PORT}..."
-x11vnc -display "${DISPLAY}" -forever -shared -nopw -rfbport "${VNC_PORT}" -xkb -ncache 10 -quiet &
+echo "[web-wrapper] Starting low-latency x11vnc on port ${VNC_PORT}..."
+x11vnc -display "${DISPLAY}" -forever -shared -nopw -rfbport "${VNC_PORT}" -xkb -noxdamage -wait 5 -defer 5 -threads -speeds lan -quiet &
 sleep 1
 
-echo "[web-wrapper] Starting noVNC web server on http://0.0.0.0:${NOVNC_PORT}/vnc.html?autoconnect=true&resize=scale ..."
+echo "[web-wrapper] Starting noVNC web server on http://0.0.0.0:${NOVNC_PORT}/vnc.html?autoconnect=true&resize=scale&quality=9&compression=1 ..."
 websockify --web=/usr/share/novnc/ "${NOVNC_PORT}" "localhost:${VNC_PORT}" >/dev/null 2>&1 &
 
 echo "==========================================================================="
-echo " Original FTC Test Harness is now streaming to Chrome!"
-echo " Open in Chrome: http://localhost:${NOVNC_PORT}/vnc.html?autoconnect=true&resize=scale"
+echo " Original FTC Test Harness is now streaming to Chrome (Low-Latency Mode)!"
+echo " Open in Chrome: http://localhost:${NOVNC_PORT}/vnc.html?autoconnect=true&resize=scale&quality=9&compression=1"
 echo "==========================================================================="
 
 cd "${REPO_ROOT}/th_src"
 chmod +x ./gradlew
+
+JAVA_PERF_OPTS=(
+  "-Dsun.java2d.pmoffscreen=false"
+  "-Dsun.java2d.xrender=false"
+  "-Dswing.bufferPerWindow=true"
+  "-XX:+UseG1GC"
+)
 
 launch_java_viewer() {
   mkdir -p "${REPO_ROOT}/th_src/build/recordings"
   cp -n "${REPO_ROOT}/web/build/recordings/"*.json "${REPO_ROOT}/th_src/build/recordings/" 2>/dev/null || true
   echo "[web-wrapper] Launching original Java Swing viewer (pvi.harness.viewer.RecordingViewer)..."
   while true; do
-    java -javaagent:"${REPO_ROOT}/web/build/agent/harness-agent.jar" -jar "${REPO_ROOT}/web/harness-viewer.jar" || true
+    java "${JAVA_PERF_OPTS[@]}" -javaagent:"${REPO_ROOT}/web/build/agent/harness-agent.jar" -jar "${REPO_ROOT}/web/harness-viewer.jar" || true
     echo "[web-wrapper] Viewer window closed; restarting in 2s..."
     sleep 2
   done
