@@ -49,34 +49,83 @@
       font-weight: 600;
       font-size: 15px;
       letter-spacing: 0.5px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-right: 16px;
     }
+    /* Status tag, not a button: tinted text with no solid fill or border */
     .badge {
-      background: #238636;
-      color: #fff;
-      font-size: 11px;
+      background: rgba(35, 134, 54, 0.15);
+      color: #3fb950;
+      font-size: 10.5px;
       font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 4px;
+      letter-spacing: 0.6px;
+      padding: 2px 7px;
+      border-radius: 3px;
       text-transform: uppercase;
+      cursor: default;
+      user-select: none;
     }
     .controls {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    /* Caption + its dropdown read as one unit */
+    .ctl-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ctl-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: #7d8590;
+      cursor: default;
+      user-select: none;
+    }
+    .ctl-divider {
+      width: 1px;
+      height: 22px;
+      background: #30363d;
+      margin: 0 6px;
+      flex-shrink: 0;
     }
     select, button, .file-btn {
       background: #21262d;
       color: #c9d1d9;
       border: 1px solid #363b42;
       border-radius: 6px;
-      padding: 7px 14px;
-      font-size: 13.5px;
+      height: 32px;
+      padding: 0 12px;
+      font-size: 13px;
       font-weight: 500;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
       transition: all 0.15s ease;
+    }
+    #team-select { max-width: 230px; }
+    #recording-select { max-width: 300px; }
+    #scale-select { max-width: 150px; }
+    /* Narrow windows: drop captions and secondary words so nothing wraps */
+    @media (max-width: 1360px) {
+      .ctl-label { display: none; }
+      #recording-select { max-width: 240px; }
+    }
+    @media (max-width: 1180px) {
+      .btn-text-optional { display: none; }
+      #team-select { max-width: 170px; }
+      #recording-select { max-width: 200px; }
+      .brand .badge { display: none; }
     }
     select:hover, button:hover, .file-btn:hover {
       background: #30363d;
@@ -168,48 +217,56 @@
       </div>
 
       <div class="controls">
-        <label for="team-select" style="font-size: 13px; color: #8b949e;">Team:</label>
-        <select id="team-select" title="Switch between FTC teams or view all runs">
-          <option value="team3" selected>Team 3 (BioBuzz) [feature/team-3-setup]</option>
-          <option value="team2">Team 2 [Team2-Robot-Code]</option>
-          <option value="team4">Team 4 [Team_4_Branch]</option>
-          <option value="teamA">Team A (Starter Bot) [master]</option>
-          <option value="all">🌐 All Teams & Runs</option>
-        </select>
+        <div class="ctl-group">
+          <label for="team-select" class="ctl-label">Team</label>
+          <select id="team-select" title="Team and the GitHub branch its code is pulled from">
+            <option value="team3" selected>Team 3 · feature/team-3-setup</option>
+            <option value="team2">Team 2 · Team2-Robot-Code</option>
+            <option value="team4">Team 4 · Team_4_Branch</option>
+            <option value="teamA">Team A · master</option>
+            <option value="all">All teams</option>
+          </select>
+        </div>
 
-        <label for="recording-select" style="font-size: 13px; color: #8b949e; margin-left: 4px;">Autonomous:</label>
-        <select id="recording-select">
-          <option value="auto-Team3PedroPilotAutoOpMode.json">Team3PedroPilotAutoOpMode (Pedro Pathing)</option>
-          <option value="auto-Team3AutonomousOpMode.json">Team3AutonomousOpMode (Score Specimen)</option>
-          <option value="auto-Team3AutoOpMode.json">Team3AutoOpMode</option>
-          <option value="auto-Team3TempStrafeRight8AutoOpMode.json">Team3TempStrafeRight8AutoOpMode</option>
-          <option value="auto-Team3WebcamTestAutoOpMode.json">Team3WebcamTestAutoOpMode</option>
-        </select>
+        <div class="ctl-group">
+          <label for="recording-select" class="ctl-label">Auto</label>
+          <select id="recording-select" title="Autonomous run to replay">
+            <option value="auto-Team3PedroPilotAutoOpMode.json">Team3PedroPilotAutoOpMode (Pedro Pathing)</option>
+            <option value="auto-Team3AutonomousOpMode.json">Team3AutonomousOpMode (Score Specimen)</option>
+            <option value="auto-Team3AutoOpMode.json">Team3AutoOpMode</option>
+            <option value="auto-Team3TempStrafeRight8AutoOpMode.json">Team3TempStrafeRight8AutoOpMode</option>
+            <option value="auto-Team3WebcamTestAutoOpMode.json">Team3WebcamTestAutoOpMode</option>
+          </select>
+        </div>
 
-        <label for="scale-select" style="font-size: 13px; color: #8b949e; margin-left: 4px;">UI Zoom:</label>
-        <select id="scale-select" title="Change simulation UI scale for better readability">
-          <option value="large" selected>🔍 UI: Large (150%)</option>
-          <option value="medium">🔍 UI: Medium (125%)</option>
-          <option value="compact">🔍 UI: Compact (100%)</option>
-          <option value="native">🔍 UI: 1:1 Native</option>
-        </select>
+        <div class="ctl-group">
+          <label for="scale-select" class="ctl-label">Zoom</label>
+          <select id="scale-select" title="Simulation UI scale">
+            <option value="large" selected>Large (150%)</option>
+            <option value="medium">Medium (125%)</option>
+            <option value="compact">Compact (100%)</option>
+            <option value="native">Native (1:1)</option>
+          </select>
+        </div>
 
-        <label class="file-btn">
-          📂 Load JSON...
+        <span class="ctl-divider" aria-hidden="true"></span>
+
+        <label class="file-btn" title="Open a .json recording from your computer">
+          📂 <span class="btn-text-optional">Load JSON</span>
           <input type="file" id="file-input" accept=".json" style="display: none;">
         </label>
 
-        <button id="btn-comp-suite" class="comp-suite-btn" onclick="openCompetitionSuite()" title="Match Preparation & Competition Tools">🏆 Match Strategy</button>
-        <button id="btn-view-code" class="code-inspector-btn" onclick="openCurrentOpModeCode()" title="View and inspect robot source code from GitHub branches">💻 Robot Code & Branches</button>
-        <button id="btn-fullscreen" title="Fullscreen">⛶ Fullscreen</button>
+        <button id="btn-comp-suite" class="comp-suite-btn" onclick="openCompetitionSuite()" title="Match preparation and competition tools">🏆 Match Strategy</button>
+        <button id="btn-view-code" class="code-inspector-btn" onclick="openCurrentOpModeCode()" title="View robot source code from GitHub branches">💻 Robot Code</button>
+        <button id="btn-fullscreen" title="Fullscreen">⛶ <span class="btn-text-optional">Fullscreen</span></button>
       </div>
     </div>
 
     <div id="viewport-container">
       <canvas id="unity-canvas" tabindex="-1"></canvas>
       <div id="drop-hint">Drop .json recording here to replay</div>
-      <div id="web-mode-pill" style="display: none; position: absolute; background: #0b0e12; border: 1px solid #222931; border-radius: 4px; z-index: 15; pointer-events: auto; box-sizing: border-box; text-align: center; cursor: default;" title="Running in WebGL Autonomous Simulation Mode">
-        <span style="color: #7a858f; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; height: 100%; letter-spacing: 0.5px;">⚡ WEB REPLAY MODE</span>
+      <div id="web-mode-pill" style="display: none; position: absolute; background: #0b0e12; border: none; z-index: 15; pointer-events: auto; box-sizing: border-box; cursor: default; user-select: none;" title="This web version replays recorded runs; live driving needs the desktop app">
+        <span style="color: #6e7681; font-size: 10.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; height: 100%; letter-spacing: 0.8px; text-transform: uppercase;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #3fb950; display: inline-block;"></span>Web replay</span>
       </div>
 
       <div id="loading-overlay">

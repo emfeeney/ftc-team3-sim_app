@@ -306,7 +306,7 @@
 
     // Populate Tab 4 (Scouting Card)
     const teamSelect = document.querySelector("#team-select");
-    const teamName = teamSelect ? teamSelect.options[teamSelect.selectedIndex].text : "Team 3 (BioBuzz)";
+    const teamName = teamSelect ? teamSelect.options[teamSelect.selectedIndex].text.split(" · ")[0] : "Team 3";
     const recSelect = document.querySelector("#recording-select");
     const routeName = recSelect ? recSelect.value.replace(/^auto-/, "").replace(/\.json$/, "") : "AutoOpMode";
 
