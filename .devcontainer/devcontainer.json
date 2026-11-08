@@ -1,0 +1,17 @@
+{
+  "name": "FTC Team 3 Simulator (Original App Web Wrapper)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "forwardPorts": [6080],
+  "portsAttributes": {
+    "6080": {
+      "label": "FTC Test Harness & VI Arena (Web Window)",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "postStartCommand": "nohup bash /workspace/web/start-web-desktop.sh >/tmp/web-desktop.log 2>&1 &"
+}
+
+
