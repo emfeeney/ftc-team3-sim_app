@@ -69,3 +69,4 @@ cp build/recordings/auto-*.json "${REPO_ROOT}/web/build/recordings/" 2>/dev/null
 echo "======================================================================"
 echo " [SUCCESS] 3D Autonomous runs simulated and ready in web/vi_arena/!"
 echo "======================================================================"
+
