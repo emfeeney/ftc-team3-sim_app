@@ -3,281 +3,138 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Team 3 FTC Simulator &amp; Mission Control (Web Port)</title>
-  <link rel="stylesheet" href="styles.css" />
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
-      }
+  <title>FTC Test Harness — Original Viewer (CheerpJ WebAssembly JVM)</title>
+  <!-- CheerpJ 3.0 WebAssembly JVM Loader -->
+  <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #05070a;
+      color: #e8ecef;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
     }
-  </script>
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #05070a;
+      z-index: 9999;
+      gap: 14px;
+      transition: opacity 0.3s ease;
+    }
+    #loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #222931;
+      border-top-color: #4fc3f7;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .title {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #e8ecef;
+    }
+    .status {
+      font-size: 13px;
+      color: #7a858f;
+      max-width: 520px;
+      text-align: center;
+      line-height: 1.5;
+    }
+    #display-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+  </style>
 </head>
 <body>
-  <div class="app-shell">
-    <!-- Top Mission Control Header -->
-    <header class="top-bar">
-      <div class="brand-group">
-        <span class="badge-live" id="status-badge">LIVE SIM</span>
-        <h1 class="app-title">TEAM 3 <span class="accent">//</span> BIOBUZZ 2026 SIMULATOR</h1>
-      </div>
-
-      <div class="controls-group">
-        <label class="control-label" for="mode-select">MODE / OPMODE</label>
-        <select id="mode-select" class="mc-select">
-          <optgroup label="Live Browser Simulation (Chromebook Ready)">
-            <option value="live:teleop" selected>Live TeleOp: Team 3 Mecanum Drive</option>
-            <option value="live:auto-main">Live Auto: Team 3 Autonomous</option>
-            <option value="live:auto-pedro">Live Auto: Team 3 Pedro Paths</option>
-            <option value="live:auto-strafe">Live Auto: Team 3 Temp Strafe Right 8</option>
-          </optgroup>
-          <optgroup label="Saved Recordings (Java Harness Runs)">
-            <option value="replay:viewer-Team3AutonomousOpMode-autonomous.json">Replay: Team 3 Autonomous</option>
-            <option value="replay:viewer-Team3AutoOpMode-autonomous.json">Replay: Team 3 Auto</option>
-            <option value="replay:viewer-Team3PedroPilotAutoOpMode-autonomous.json">Replay: Team 3 Pedro Paths</option>
-            <option value="replay:viewer-Team3TempStrafeRight8AutoOpMode-autonomous.json">Replay: Team 3 Temp Strafe Right 8</option>
-            <option value="replay:viewer-Team3WebcamTestAutoOpMode-autonomous.json">Replay: Team 3 Webcam Test Auto</option>
-            <option value="replay:pushed-ball-rolls-on.json">Replay: Pushed Ball Rolls On</option>
-            <option value="replay:vision-field-tags.json">Replay: Vision Field Tags</option>
-          </optgroup>
-          <optgroup label="External / Java Bridge">
-            <option value="bridge:ws">Java Bridge (ws://localhost:7466)</option>
-          </optgroup>
-        </select>
-
-        <button id="btn-open-file" class="mc-btn" title="Open a .json recording from disk">Open .json…</button>
-        <input type="file" id="file-input" accept=".json" hidden />
-
-        <div class="divider"></div>
-
-        <label class="control-label" for="start-slot-select">START POSE</label>
-        <select id="start-slot-select" class="mc-select mc-select-sm">
-          <option value="custom" selected>Team 3 Default (-36, -60, 90°)</option>
-          <option value="red-left">Red Left (-48, -63, 90°)</option>
-          <option value="red-right">Red Right (48, -63, 90°)</option>
-          <option value="blue-left">Blue Left (-48, 63, 270°)</option>
-          <option value="blue-right">Blue Right (48, 63, 270°)</option>
-          <option value="center">Center (0, 0, 0°)</option>
-        </select>
-      </div>
-
-      <div class="clock-group">
-        <div class="clock-readout" id="clock-readout">T+ 00.00s</div>
-        <div class="step-readout" id="step-readout">STEP 0000 · 50 Hz</div>
-      </div>
-    </header>
-
-    <!-- Viewport Toolbar -->
-    <div class="view-toolbar">
-      <div class="toolbar-left">
-        <div class="segmented-control">
-          <button id="btn-view-3d" class="seg-btn active" title="3D WebGL Arena (Orbit/Zoom)">3D Arena</button>
-          <button id="btn-view-2d" class="seg-btn" title="2D Top-Down Tactical Field">2D Top-Down</button>
-        </div>
-
-        <div class="cam-presets" id="cam-presets-bar">
-          <span class="toolbar-label">CAM:</span>
-          <button class="chip-btn active" data-cam="1" title="Key 1: Audience Overview">1 Audience</button>
-          <button class="chip-btn" data-cam="2" title="Key 2: Top-Down">2 Overhead</button>
-          <button class="chip-btn" data-cam="3" title="Key 3: Chase Camera">3 Chase</button>
-          <button class="chip-btn" data-cam="4" title="Key 4: Red Driver Station">4 Red DS</button>
-          <button class="chip-btn" data-cam="5" title="Key 5: Blue Driver Station">5 Blue DS</button>
-          <button class="chip-btn" data-cam="6" title="Key 6: Red HIVE Close-Up">6 Red HIVE</button>
-          <button class="chip-btn" data-cam="7" title="Key 7: Blue HIVE Close-Up">7 Blue HIVE</button>
-        </div>
-      </div>
-
-      <div class="toolbar-right">
-        <button id="btn-toggle-sightlines" class="chip-btn active" title="Shortcut: A">
-          <span class="dot cyan"></span> [A] Tag Sightlines
-        </button>
-        <button id="btn-toggle-pip" class="chip-btn active" title="Shortcut: C">
-          <span class="dot amber"></span> [C] Webcam 1 PIP
-        </button>
-        <button id="btn-toggle-obstacles" class="chip-btn" title="Shortcut: O">
-          <span class="dot red"></span> [O] Colliders
-        </button>
-        <button id="btn-toggle-trail" class="chip-btn active" title="Shortcut: T">
-          <span class="dot green"></span> [T] Path Trail
-        </button>
-      </div>
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="title">FTC Test Harness · Original Java Swing Viewer</div>
+    <div class="status" id="status-text">
+      Initializing CheerpJ WebAssembly JVM and loading unmodified <code>harness-viewer.jar</code>...
     </div>
-
-    <!-- Main Content Split: Arena Left, Mission Control Telemetry Right -->
-    <main class="workspace">
-      <section class="arena-container" id="arena-container">
-        <!-- 3D WebGL Canvas -->
-        <canvas id="canvas-3d" class="arena-canvas"></canvas>
-        <!-- 2D Tactical Canvas -->
-        <canvas id="canvas-2d" class="arena-canvas hidden"></canvas>
-
-        <!-- Simulated Robot Webcam 1 Picture-in-Picture -->
-        <div class="webcam-pip" id="webcam-pip">
-          <div class="pip-header">
-            <span>WEBCAM 1 · 640×480 (FWD +6", UP +12")</span>
-            <span id="pip-tag-count" class="pip-badge">0 TAGS</span>
-          </div>
-          <canvas id="canvas-pip" width="320" height="240"></canvas>
-        </div>
-
-        <!-- On-Screen Controls / Chromebook Help Overlay -->
-        <div class="hud-overlay">
-          <div class="hud-pill" id="gamepad-banner">
-            <span class="status-dot" id="gp-dot"></span>
-            <span id="gp-status-text">Keyboard Active: WASD (Move) · J/L or ◀/▶ (Turn) · I/K (Intake/Outtake) · U (Midtake) · M/N (Deploy Servo)</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Right Sidebar: Telemetry Cards -->
-      <aside class="telemetry-panel">
-        <!-- Vehicle & Pose Card -->
-        <div class="mc-card">
-          <div class="mc-card-header">
-            <span>VEHICLE &amp; POSE (FTC INCHES)</span>
-            <span class="mc-tag" id="vehicle-name">Team 3</span>
-          </div>
-          <div class="pose-grid">
-            <div class="pose-stat">
-              <span class="stat-label">X (AUDIENCE +)</span>
-              <span class="stat-val" id="val-x">-36.00"</span>
-            </div>
-            <div class="pose-stat">
-              <span class="stat-label">Y (BLUE +)</span>
-              <span class="stat-val" id="val-y">-60.00"</span>
-            </div>
-            <div class="pose-stat">
-              <span class="stat-label">HEADING</span>
-              <span class="stat-val" id="val-h">90.0°</span>
-            </div>
-            <div class="pose-stat">
-              <span class="stat-label">SPEED</span>
-              <span class="stat-val" id="val-speed">0.0 in/s</span>
-            </div>
-          </div>
-          <div class="sub-stat-row">
-            <span>Vx: <strong id="val-vx">0.0</strong> in/s</span>
-            <span>Vy: <strong id="val-vy">0.0</strong> in/s</span>
-            <span>ω: <strong id="val-omega">0.0</strong> °/s</span>
-            <span id="collision-indicator" class="collision-pill hidden">WALL / OBSTACLE</span>
-          </div>
-        </div>
-
-        <!-- Motors & Servos Card -->
-        <div class="mc-card">
-          <div class="mc-card-header">
-            <span>HARDWARE ACTUATORS</span>
-            <span class="mc-sub">4 Drive · 3 Mech · 1 Servo</span>
-          </div>
-          <div class="actuators-list" id="actuators-list">
-            <!-- Populated dynamically -->
-          </div>
-        </div>
-
-        <!-- AprilTag Vision Card -->
-        <div class="mc-card">
-          <div class="mc-card-header">
-            <span>APRILTAG VISION (WEBCAM 1)</span>
-            <span class="mc-sub" id="tags-summary">0 in view</span>
-          </div>
-          <div class="tags-table-wrap">
-            <table class="tags-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>RANGE</th>
-                  <th>BEARING</th>
-                  <th>ELEV</th>
-                  <th>YAW</th>
-                </tr>
-              </thead>
-              <tbody id="tags-tbody">
-                <tr><td colspan="5" class="empty-row">No AprilTags in camera frustum</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Driver Station Telemetry Card -->
-        <div class="mc-card">
-          <div class="mc-card-header">
-            <span>DRIVER STATION TELEMETRY</span>
-            <span class="mc-sub" id="auto-step-badge">IDLE</span>
-          </div>
-          <pre class="telemetry-log" id="telemetry-box">Status : Ready
-Mode   : Live Browser Sim</pre>
-        </div>
-
-        <!-- Gamepad Visualizer Card -->
-        <div class="mc-card">
-          <div class="mc-card-header">
-            <span>GAMEPAD 1 &amp; KEYBOARD INPUT</span>
-            <span class="mc-sub" id="gp-id-label">WASD + Arrows</span>
-          </div>
-          <div class="gamepad-viz">
-            <div class="stick-box">
-              <canvas id="stick-left" width="76" height="76"></canvas>
-              <span class="stick-caption">LS (Strafe/Fwd)</span>
-            </div>
-            <div class="stick-box">
-              <canvas id="stick-right" width="76" height="76"></canvas>
-              <span class="stick-caption">RS (Turn)</span>
-            </div>
-            <div class="triggers-box">
-              <div class="trig-row">
-                <span>LT</span>
-                <div class="trig-bar"><div id="bar-lt" class="trig-fill"></div></div>
-              </div>
-              <div class="trig-row">
-                <span>RT</span>
-                <div class="trig-bar"><div id="bar-rt" class="trig-fill"></div></div>
-              </div>
-              <div class="btn-pills" id="gp-buttons-row">
-                <span class="gp-pill" data-btn="a">A</span>
-                <span class="gp-pill" data-btn="b">B</span>
-                <span class="gp-pill" data-btn="x">X</span>
-                <span class="gp-pill" data-btn="y">Y</span>
-                <span class="gp-pill" data-btn="lb">LB</span>
-                <span class="gp-pill" data-btn="rb">RB</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
-    </main>
-
-    <!-- Bottom Playback & Recording Bar -->
-    <footer class="bottom-bar">
-      <div class="transport-controls">
-        <button id="btn-play-pause" class="mc-btn mc-btn-primary" title="Space: Play / Pause">⏸ Pause</button>
-        <button id="btn-reset" class="mc-btn" title="R: Reset Simulation / Rewind">⏮ Reset [R]</button>
-        <button id="btn-step-back" class="mc-btn mc-btn-icon" title="Left Bracket [: Step Back">◀</button>
-        <button id="btn-step-fwd" class="mc-btn mc-btn-icon" title="Right Bracket ]: Step Forward">▶</button>
-      </div>
-
-      <div class="scrubber-group">
-        <input type="range" id="timeline-slider" min="0" max="0" value="0" step="1" />
-      </div>
-
-      <div class="recording-controls">
-        <label class="control-label" for="speed-select">SPEED</label>
-        <select id="speed-select" class="mc-select mc-select-sm">
-          <option value="0.25">0.25×</option>
-          <option value="0.5">0.5×</option>
-          <option value="1" selected>1.0×</option>
-          <option value="2">2.0×</option>
-          <option value="4">4.0×</option>
-        </select>
-
-        <div class="divider"></div>
-
-        <button id="btn-record" class="mc-btn mc-btn-rec" title="Record live frames for export">● Record</button>
-        <button id="btn-export" class="mc-btn" title="Download pvi-harness-recording JSON">⬇ Export .json</button>
-      </div>
-    </footer>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <div id="display-container"></div>
+
+  <script>
+    // Computes the base path inside CheerpJ's HTTP-backed /app/ mount so it works
+    // whether served from / (e.g. npx serve web) or /web/ (e.g. GitHub Pages root).
+    function resolveAppRoot() {
+      let path = window.location.pathname;
+      if (path.endsWith('/index.html')) {
+        path = path.slice(0, -'/index.html'.length);
+      } else if (path.endsWith('/')) {
+        path = path.slice(0, -1);
+      }
+      return '/app' + path;
+    }
+
+    async function launchOriginalViewer() {
+      const statusEl = document.getElementById('status-text');
+      const overlayEl = document.getElementById('loading-overlay');
+      const containerEl = document.getElementById('display-container');
+
+      try {
+        const appRoot = resolveAppRoot();
+        statusEl.textContent = 'Starting WebAssembly JVM (cheerpjInit)...';
+
+        await cheerpjInit({
+          version: 17,
+          javaProperties: [
+            'user.dir=' + appRoot,
+            'java.awt.headless=false'
+          ]
+        });
+
+        statusEl.textContent = 'Creating AWT/Swing display surface...';
+        cheerpjCreateDisplay(-1, -1, containerEl);
+
+        // Hide the loading splash once the Swing JFrame starts rendering
+        setTimeout(() => {
+          overlayEl.classList.add('hidden');
+        }, 2500);
+
+        // Optional ?file= query parameter (same as dragging a .json onto view.bat)
+        const params = new URLSearchParams(window.location.search);
+        const recordingArg = params.get('file');
+        const jarPath = appRoot + '/harness-viewer.jar';
+
+        statusEl.textContent = 'Running pvi.harness.viewer.RecordingViewer from ' + jarPath + '...';
+        if (recordingArg) {
+          await cheerpjRunMain('pvi.harness.viewer.RecordingViewer', jarPath, recordingArg);
+        } else {
+          await cheerpjRunMain('pvi.harness.viewer.RecordingViewer', jarPath);
+        }
+      } catch (err) {
+        console.error('Failed to launch ViewerWindow in CheerpJ:', err);
+        statusEl.innerHTML =
+          'Could not start the WebAssembly JVM: <code>' +
+          String(err && err.message ? err.message : err) +
+          '</code><br><br>Make sure you opened this page via an HTTP server (e.g. <code>npx serve web</code> or GitHub Pages) rather than a <code>file://</code> URL.';
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', launchOriginalViewer);
+  </script>
 </body>
 </html>

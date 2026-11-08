@@ -438,3 +438,62 @@ tasks.register('unityBridge', JavaExec) {
         args project.property('port')
     }
 }
+
+// ---------------------------------------------------------------------------
+// webViewerJar & buildWebWrapper: packages the unmodified Java Swing viewer
+// (pvi.harness.viewer.RecordingViewer) and its runtime libraries into ../web/
+// so CheerpJ (WebAssembly JVM) or a container can run the exact original app.
+// ---------------------------------------------------------------------------
+def webViewerJar = tasks.register('webViewerJar', Jar) {
+    group = 'harness'
+    description = 'Packages the unmodified viewer, harness core, and TeamCode into a single runnable JAR for the web wrapper.'
+    archiveFileName = 'harness-viewer.jar'
+    destinationDirectory = layout.projectDirectory.dir('../web')
+    zip64 = true
+    from sourceSets.viewer.output
+    from sourceSets.main.output
+    from sourceSets.agent.output
+    from({
+        sourceSets.viewer.runtimeClasspath.filter {
+            it.name.endsWith('.jar') && !it.name.startsWith('android-all-')
+        }.collect { zipTree(it) }
+    }) {
+        exclude 'META-INF/MANIFEST.MF', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA',
+                'module-info.class', 'META-INF/versions/*/module-info.class'
+    }
+    from({
+        sourceSets.viewer.runtimeClasspath.filter { it.name.startsWith('android-all-') }.collect { zipTree(it) }
+    }) {
+        include 'android/os/**', 'android/util/**', 'android/graphics/**', 'android/content/**',
+                'android/hardware/**', 'android/annotation/**', 'android/view/**', 'org/json/**'
+        exclude 'META-INF/**'
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+                'Main-Class': 'pvi.harness.viewer.RecordingViewer',
+                'Premain-Class': 'pvi.harness.agent.HarnessAgent',
+                'Can-Redefine-Classes': 'true',
+                'Can-Retransform-Classes': 'true'
+        )
+    }
+}
+
+tasks.register('buildWebWrapper', Copy) {
+    group = 'harness'
+    description = 'Builds harness-viewer.jar and copies harness.properties, fields/, and recordings into ../web/.'
+    dependsOn webViewerJar, agentJar
+    into layout.projectDirectory.dir('../web')
+    from('harness.properties')
+    from('fields') {
+        include '*.json'
+        into 'fields'
+    }
+    from('robots') { into 'robots' }
+    from(layout.buildDirectory.dir('agent')) { into 'build/agent' }
+    from(layout.buildDirectory.dir('recordings')) {
+        include 'viewer-Team3*.json', 'pushed-ball-rolls-on.json', 'vision-field-tags.json', 'obstacle-bounce.json'
+        into 'build/recordings'
+    }
+}
+

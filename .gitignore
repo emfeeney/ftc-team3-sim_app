@@ -8,9 +8,11 @@
 /th_src/build/
 # Machine-specific paths written by Android Studio
 /th_src/local.properties
-# Android Studio / IntelliJ project files
+# Android Studio / IntelliJ / VS Code project files
 *.iml
 .idea/
+.vscode/
+/th_src/bin/
 
 # --- VI_Arena: the Unity application -------------------------------------------------------
 # Unity's generated folders and IDE files in the Unity project. Unity rebuilds
