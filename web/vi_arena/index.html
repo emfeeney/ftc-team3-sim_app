@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VI_Arena — 3D FTC Simulation & Autonomous Replay</title>
+  <link rel="shortcut icon" href="TemplateData/favicon.ico">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #090c10;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #e6edf3;
+    }
+    #app-container {
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
+    }
+    #top-bar {
+      height: 48px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 10;
+      flex-shrink: 0;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+    }
+    .badge {
+      background: #238636;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    select, button, .file-btn {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #363b42;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    select:hover, button:hover, .file-btn:hover {
+      background: #30363d;
+      border-color: #8b949e;
+      color: #f0f6fc;
+    }
+    select {
+      max-width: 280px;
+      outline: none;
+    }
+    #viewport-container {
+      flex: 1;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+    }
+    #unity-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: #090c10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 50;
+      transition: opacity 0.3s ease;
+    }
+    #loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid #21262d;
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .progress-bar-bg {
+      width: 260px;
+      height: 6px;
+      background: #21262d;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    #progress-fill {
+      width: 0%;
+      height: 100%;
+      background: #238636;
+      transition: width 0.2s ease;
+    }
+    #status-text {
+      font-size: 13px;
+      color: #8b949e;
+    }
+    #drop-hint {
+      position: absolute;
+      inset: 20px;
+      border: 2px dashed #58a6ff;
+      border-radius: 12px;
+      background: rgba(88, 166, 255, 0.08);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 600;
+      color: #58a6ff;
+      pointer-events: none;
+      z-index: 40;
+    }
+  </style>
+</head>
+<body>
+  <div id="app-container">
+    <div id="top-bar">
+      <div class="brand">
+        <span>VI_Arena 3D</span>
+        <span class="badge">Team 3 WebGL</span>
+      </div>
+
+      <div class="controls">
+        <label for="recording-select" style="font-size: 12px; color: #8b949e;">Autonomous Run:</label>
+        <select id="recording-select">
+          <option value="auto-Team3PedroPilotAutoOpMode.json">Team3PedroPilotAutoOpMode (Pedro Pathing)</option>
+          <option value="auto-Team3AutonomousOpMode.json">Team3AutonomousOpMode (Score Specimen)</option>
+          <option value="auto-Team3AutoOpMode.json">Team3AutoOpMode</option>
+          <option value="auto-Team3TempStrafeRight8AutoOpMode.json">Team3TempStrafeRight8AutoOpMode</option>
+          <option value="auto-Team3WebcamTestAutoOpMode.json">Team3WebcamTestAutoOpMode</option>
+        </select>
+
+        <label class="file-btn">
+          📂 Load JSON...
+          <input type="file" id="file-input" accept=".json" style="display: none;">
+        </label>
+
+        <button id="btn-fullscreen" title="Fullscreen">⛶ Fullscreen</button>
+        <button onclick="window.location.href='../index.html'" title="Switch to 2D Swing Viewer">2D Swing Viewer ↗</button>
+      </div>
+    </div>
+
+    <div id="viewport-container">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+      <div id="drop-hint">Drop .json recording here to replay</div>
+
+      <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div style="font-size: 16px; font-weight: 600;">Loading VI_Arena 3D Simulation...</div>
+        <div class="progress-bar-bg">
+          <div id="progress-fill"></div>
+        </div>
+        <div id="status-text">Downloading 3D Arena & Team 3 Autonomous runs...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="Build/vi_arena.loader.js"></script>
+  <script>
+    const canvas = document.querySelector("#unity-canvas");
+    const overlay = document.querySelector("#loading-overlay");
+    const progressFill = document.querySelector("#progress-fill");
+    const statusText = document.querySelector("#status-text");
+    const recordingSelect = document.querySelector("#recording-select");
+    const fileInput = document.querySelector("#file-input");
+    const dropHint = document.querySelector("#drop-hint");
+    let globalUnityInstance = null;
+
+    const bundledRecordings = [
+      "auto-Team3PedroPilotAutoOpMode.json",
+      "auto-Team3AutonomousOpMode.json",
+      "auto-Team3AutoOpMode.json",
+      "auto-Team3TempStrafeRight8AutoOpMode.json",
+      "auto-Team3WebcamTestAutoOpMode.json"
+    ];
+
+    const bundledFields = [
+      "biobuzz-2026.json"
+    ];
+
+    function unityShowBanner(msg, type) {
+      console.log(`[Unity ${type}] ${msg}`);
+    }
+
+    const config = {
+      arguments: [
+        "-recordings", "/recordings",
+        "-fields", "/fields",
+        "-robot", "gobilda-starter-bot"
+      ],
+      dataUrl: "Build/vi_arena.data",
+      frameworkUrl: "Build/vi_arena.framework.js",
+      codeUrl: "Build/vi_arena.wasm",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "PVI FTC",
+      productName: "VI_Arena",
+      productVersion: "1.0",
+      showBanner: unityShowBanner,
+      preRun: [function(module) {
+        module.addRunDependency("harness_assets");
+        statusText.textContent = "Preloading BIOBUZZ 3D field and autonomous runs...";
+
+        const fieldPromises = bundledFields.map(f =>
+          fetch("fields/" + f)
+            .then(res => res.arrayBuffer())
+            .then(buf => ({ dir: "/fields", name: f, data: new Uint8Array(buf) }))
+        );
+
+        const recPromises = bundledRecordings.map(r =>
+          fetch("recordings/" + r)
+            .then(res => res.arrayBuffer())
+            .then(buf => ({ dir: "/recordings", name: r, data: new Uint8Array(buf) }))
+        );
+
+        Promise.all([...fieldPromises, ...recPromises])
+          .then(files => {
+            files.forEach(file => {
+              try {
+                module.FS_createPath("/", file.dir.replace(/^\//, ""), true, true);
+                module.FS_createDataFile(file.dir, file.name, file.data, true, true, true);
+              } catch (err) {
+                console.warn("FS preload warning:", file.dir + "/" + file.name, err);
+              }
+            });
+            module.removeRunDependency("harness_assets");
+          })
+          .catch(err => {
+            console.error("Asset preload failed:", err);
+            module.removeRunDependency("harness_assets");
+          });
+      }]
+    };
+
+    createUnityInstance(canvas, config, (progress) => {
+      progressFill.style.width = (progress * 100) + "%";
+      if (progress < 0.9) {
+        statusText.textContent = `Compiling 3D Engine & Shader Assets (${Math.round(progress * 100)}%)...`;
+      } else {
+        statusText.textContent = "Launching 3D Field View...";
+      }
+    }).then((instance) => {
+      globalUnityInstance = instance;
+      overlay.classList.add("hidden");
+
+      // Setup fullscreen
+      document.querySelector("#btn-fullscreen").onclick = () => {
+        instance.SetFullscreen(1);
+      };
+
+      // Dropdown selection change
+      recordingSelect.addEventListener("change", (e) => {
+        const file = e.target.value;
+        openRecording("/recordings/" + file);
+      });
+
+      // Drag & Drop support
+      window.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropHint.style.display = "flex";
+      });
+      window.addEventListener("dragleave", (e) => {
+        if (e.relatedTarget === null) dropHint.style.display = "none";
+      });
+      window.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropHint.style.display = "none";
+        if (e.dataTransfer.files.length > 0) {
+          handleFileInput(e.dataTransfer.files[0]);
+        }
+      });
+
+      // File input picker
+      fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+          handleFileInput(e.target.files[0]);
+        }
+      });
+    }).catch((msg) => {
+      alert("Error initializing 3D WebGL Arena: " + msg);
+      console.error(msg);
+    });
+
+    function openRecording(path) {
+      if (globalUnityInstance) {
+        console.log("Opening recording in VI_Arena:", path);
+        globalUnityInstance.SendMessage("Harness Replay", "Open", path);
+      }
+    }
+
+    function handleFileInput(file) {
+      if (!file.name.endsWith(".json")) {
+        alert("Please select a .json harness recording file.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = new Uint8Array(e.target.result);
+          const module = globalUnityInstance.Module;
+          const vPath = "/recordings/" + file.name;
+          try {
+            module.FS_createDataFile("/recordings", file.name, content, true, true, true);
+          } catch(dup) {
+            // Overwrite if exists
+            module.FS.writeFile(vPath, content);
+          }
+
+          // Add to dropdown if not present
+          let opt = Array.from(recordingSelect.options).find(o => o.value === file.name);
+          if (!opt) {
+            opt = document.createElement("option");
+            opt.value = file.name;
+            opt.textContent = file.name;
+            recordingSelect.appendChild(opt);
+          }
+          recordingSelect.value = file.name;
+
+          // Open in Unity
+          openRecording(vPath);
+        } catch (err) {
+          console.error("Failed loading dropped file into virtual FS:", err);
+          alert("Error loading recording: " + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  </script>
+</body>
+</html>

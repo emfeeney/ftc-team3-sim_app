@@ -77,7 +77,7 @@ namespace PviHarness.Replay.Editor
         /// </summary>
         public const string NormalMappedVariantPath = "Assets/HarnessReplay/Resources/ShaderVariants/StandardNormalMapped.mat";
 
-        private static void KeepNormalMappedVariant()
+        public static void KeepNormalMappedVariant()
         {
             if (AssetDatabase.LoadAssetAtPath<Material>(NormalMappedVariantPath) != null)
             {

@@ -57,3 +57,7 @@
 /VI_Arena/src/Assets/VI_Arena/PeopleSource.meta
 
 # The art originals live outside the repo now, in C:\Dev\VI_Arena-art (see VI_Arena/ART_INBOX.md).
+
+*.log
+*.log.*
+

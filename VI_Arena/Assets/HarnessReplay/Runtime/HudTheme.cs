@@ -40,6 +40,38 @@ namespace PviHarness.Replay
 
         private static readonly Dictionary<string, GUIStyle> Styles = new Dictionary<string, GUIStyle>();
 
+        private static Font defaultFont;
+        private static Font monoFont;
+
+        private static Font ResolveFont(string kind, int size)
+        {
+            if (defaultFont == null)
+            {
+                defaultFont = Resources.Load<Font>("Fonts/Bahnschrift")
+                    ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")
+                    ?? Resources.GetBuiltinResource<Font>("Arial.ttf");
+            }
+            if (monoFont == null)
+            {
+                monoFont = Resources.Load<Font>("Fonts/Consolas") ?? defaultFont;
+            }
+
+            Font chosen = kind == "mono" ? monoFont : defaultFont;
+
+            // When running on native desktop where OS fonts are available, prefer CreateDynamicFontFromOSFont
+            if (Application.platform != RuntimePlatform.WebGLPlayer)
+            {
+                string[] families = kind == "mono" ? MonoFamilies : kind == "number" ? NumberFamilies : TextFamilies;
+                Font osFont = Font.CreateDynamicFontFromOSFont(families, size);
+                if (osFont != null)
+                {
+                    chosen = osFont;
+                }
+            }
+
+            return chosen;
+        }
+
         /// <summary>A text style: normal, bold, "number" (light, for big readouts) or "mono".</summary>
         public static GUIStyle Style(string kind, int size)
         {
@@ -48,10 +80,10 @@ namespace PviHarness.Replay
             {
                 return style;
             }
-            string[] families = kind == "mono" ? MonoFamilies : kind == "number" ? NumberFamilies : TextFamilies;
+            Font font = ResolveFont(kind, size);
             style = new GUIStyle
             {
-                font = Font.CreateDynamicFontFromOSFont(families, size),
+                font = font,
                 fontSize = size,
                 fontStyle = kind == "bold" ? FontStyle.Bold : FontStyle.Normal,
                 alignment = TextAnchor.UpperLeft,

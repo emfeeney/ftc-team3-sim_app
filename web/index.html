@@ -63,9 +63,33 @@
       height: 100vh;
       position: relative;
     }
+    #switch-3d-btn {
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      z-index: 1000;
+      background: #238636;
+      color: #fff;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.2);
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    #switch-3d-btn:hover {
+      background: #2ea043;
+      transform: translateY(-1px);
+    }
   </style>
 </head>
 <body>
+  <a id="switch-3d-btn" href="vi_arena/index.html">🎮 Launch 3D VI_Arena Replay ↗</a>
   <div id="loading-overlay">
     <div class="spinner"></div>
     <div class="title">FTC Test Harness · Original Java Swing Viewer</div>

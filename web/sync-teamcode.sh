@@ -29,3 +29,4 @@ chmod +x ./gradlew
 ./gradlew webViewerJar buildWebWrapper --rerun-tasks --no-daemon
 
 echo "[sync-teamcode] Done! Latest TeamCode from '${BRANCH}' is now compiled into web/harness-viewer.jar."
+
