@@ -378,7 +378,9 @@ tasks.register('viewAfterTests', JavaExec) {
 tasks.register('viewRecording', JavaExec) {
     group = 'harness'
     description = 'Opens the viewer window: drives a TeleOp live, replays recordings (build/recordings), runs scenarios.'
-    classpath = sourceSets.viewer.runtimeClasspath
+    // Put harness classes before SDK robotLibJars so the harness's AprilTagProcessorImpl
+    // is loaded instead of the SDK's C-library version.
+    classpath = files(sourceSets.viewer.output, sourceSets.main.output, sourceSets.agent.output, configurations.viewerRuntimeClasspath)
     mainClass = 'pvi.harness.viewer.RecordingViewer'
     workingDir = projectDir
     // The dropdown can run scenarios (real TeamCode), so load the Java agent as tests do:
