@@ -380,12 +380,17 @@ tasks.register('viewRecording', JavaExec) {
     description = 'Opens the viewer window: drives a TeleOp live, replays recordings (build/recordings), runs scenarios.'
     // Put harness classes before SDK robotLibJars so the harness's AprilTagProcessorImpl
     // is loaded instead of the SDK's C-library version.
-    classpath = files(sourceSets.viewer.output, sourceSets.main.output, sourceSets.agent.output, configurations.viewerRuntimeClasspath)
+    classpath = files(
+        sourceSets.viewer.output,
+        sourceSets.main.output,
+        sourceSets.agent.output,
+        configurations.viewerRuntimeClasspath
+    )
     mainClass = 'pvi.harness.viewer.RecordingViewer'
     workingDir = projectDir
     // The dropdown can run scenarios (real TeamCode), so load the Java agent as tests do:
     // otherwise timed robot code would read the real clock.
-    dependsOn agentJar
+    dependsOn viewerClasses, classes, agentJar
     def viewerAgentFile = agentJar.flatMap { it.archiveFile }
     jvmArgumentProviders.add({ ["-javaagent:${viewerAgentFile.get().asFile.absolutePath}"] } as CommandLineArgumentProvider)
     jvmArgs runJvmArgs   // only the options this Java knows (see the top of this file)

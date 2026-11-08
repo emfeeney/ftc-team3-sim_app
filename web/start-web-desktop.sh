@@ -23,8 +23,13 @@ if [ ! -d "$REPO_ROOT/th_src" ] && [ -d "/workspace/th_src" ]; then
   REPO_ROOT="/workspace"
 fi
 
+echo "[web-wrapper] Cleaning up any previous display and server processes..."
+pkill -9 -f "Xvfb ${DISPLAY}" 2>/dev/null || true
+pkill -9 -f "x11vnc.*${VNC_PORT}" 2>/dev/null || true
+pkill -9 -f "websockify.*${NOVNC_PORT}" 2>/dev/null || true
+rm -f "/tmp/.X${DISPLAY#:}-lock" "/tmp/.X11-unix/X${DISPLAY#:}"
+
 echo "[web-wrapper] Starting virtual display ${DISPLAY} (${SCREEN_WIDTH}x${SCREEN_HEIGHT}x${SCREEN_DEPTH})..."
-rm -f "/tmp/.X${DISPLAY#:}-lock"
 Xvfb "${DISPLAY}" -screen 0 "${SCREEN_WIDTH}x${SCREEN_HEIGHT}x${SCREEN_DEPTH}" -ac +extension GLX +render -noreset &
 sleep 1
 
@@ -48,6 +53,8 @@ cd "${REPO_ROOT}/th_src"
 chmod +x ./gradlew
 
 launch_java_viewer() {
+  echo "[web-wrapper] Pre-compiling viewer and harness classes..."
+  ./gradlew viewerClasses classes agentJar --no-daemon
   echo "[web-wrapper] Launching original Java Swing viewer (./gradlew viewRecording)..."
   while true; do
     ./gradlew viewRecording --no-daemon || true

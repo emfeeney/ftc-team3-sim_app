@@ -3,6 +3,7 @@
 
 # --- th_src: the Java test harness ---------------------------------------------------------
 # Gradle's working files and caches
+.gradle/
 /th_src/.gradle/
 # Compiled classes, test reports, recordings, harness-agent.jar, sim logs
 /th_src/build/
