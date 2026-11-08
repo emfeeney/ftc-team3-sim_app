@@ -22,3 +22,4 @@ cp "${CONFIG_FILE}" "${REPO_ROOT}/th_src/harness.properties"
 cp "${CONFIG_FILE}" "${REPO_ROOT}/web/harness.properties"
 
 echo "[switch-team] Team configuration '${TEAM}' activated successfully for simulation!"
+

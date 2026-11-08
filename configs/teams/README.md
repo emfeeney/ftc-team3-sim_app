@@ -62,3 +62,4 @@ Any team can drop their own `.json` recording file directly into the WebGL viewe
 - The viewer parses the robot name and dimensions from the recording header.
 - Automatically creates a team tab in the selector.
 - Visualizes their exact robot size, trajectory, and telemetry in 3D.
+
