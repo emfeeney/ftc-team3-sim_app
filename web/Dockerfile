@@ -47,3 +47,4 @@ RUN chmod +x /usr/local/bin/start-web-desktop.sh
 EXPOSE 6080
 
 CMD ["/usr/local/bin/start-web-desktop.sh"]
+

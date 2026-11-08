@@ -83,3 +83,4 @@ case "${APP_MODE}" in
     launch_java_viewer
     ;;
 esac
+

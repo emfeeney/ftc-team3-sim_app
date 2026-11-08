@@ -13,3 +13,4 @@
   },
   "postStartCommand": "nohup bash /workspace/web/start-web-desktop.sh >/tmp/web-desktop.log 2>&1 &"
 }
+
