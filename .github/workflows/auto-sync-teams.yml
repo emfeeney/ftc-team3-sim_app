@@ -1,5 +1,7 @@
 name: Auto-Sync Teams & Generate 3D Runs
 
+permissions:
+  contents: write
 on:
   schedule:
     # Run once daily at 06:00 UTC
