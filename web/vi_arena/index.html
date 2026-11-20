@@ -626,6 +626,7 @@
     bootViewer();
 
     function openRecording(path) {
+      window.currentActiveVirtualPath = path;
       if (globalUnityInstance) {
         console.log("Opening recording in VI_Arena:", path);
         globalUnityInstance.SendMessage("Harness Replay", "Open", path);
