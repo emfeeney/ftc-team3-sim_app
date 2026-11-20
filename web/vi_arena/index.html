@@ -573,10 +573,6 @@
         globalUnityInstance = instance;
         overlay.classList.add("hidden");
 
-        if (recordingSelect && recordingSelect.value) {
-          ensureAndOpenRecording(teamSelect ? teamSelect.value : initialBranch, recordingSelect.value);
-        }
-
         if (teamSelect) {
           teamSelect.addEventListener("change", (e) => {
             const branch = e.target.value;
