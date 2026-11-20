@@ -230,24 +230,16 @@
 
       <div class="controls">
         <div class="ctl-group">
-          <label for="team-select" class="ctl-label">Team</label>
-          <select id="team-select" title="Team and the GitHub branch its code is pulled from">
-            <option value="team3" selected>Team 3 · feature/team-3-setup</option>
-            <option value="team2">Team 2 · Team2-Robot-Code</option>
-            <option value="team4">Team 4 · Team_4_Branch</option>
-            <option value="teamA">Team A · master</option>
-            <option value="all">All teams</option>
+          <label for="team-select" class="ctl-label">Branch</label>
+          <select id="team-select" title="GitHub branch from PVI-FTC/ftc-robot-framework">
+            <option value="">Loading branches...</option>
           </select>
         </div>
 
         <div class="ctl-group">
           <label for="recording-select" class="ctl-label">Auto</label>
           <select id="recording-select" title="Autonomous run to replay">
-            <option value="auto-Team3PedroPilotAutoOpMode.json">Team3PedroPilotAutoOpMode (Pedro Pathing)</option>
-            <option value="auto-Team3AutonomousOpMode.json">Team3AutonomousOpMode (Score Specimen)</option>
-            <option value="auto-Team3AutoOpMode.json">Team3AutoOpMode</option>
-            <option value="auto-Team3TempStrafeRight8AutoOpMode.json">Team3TempStrafeRight8AutoOpMode</option>
-            <option value="auto-Team3WebcamTestAutoOpMode.json">Team3WebcamTestAutoOpMode</option>
+            <option value="">Loading runs...</option>
           </select>
         </div>
 
@@ -379,14 +371,34 @@
       }
     }, true);
 
-    const bundledRecordings = [
-      "auto-Team3PedroPilotAutoOpMode.json",
-      "auto-Team3AutonomousOpMode.json",
-      "auto-Team3AutoOpMode.json",
-      "auto-Team3TempStrafeRight8AutoOpMode.json",
-      "auto-Team3WebcamTestAutoOpMode.json",
-      "auto-TeamAAutoOpMode.json"
-    ];
+    let manifestData = null;
+    const loadedVirtualPaths = new Set();
+
+    const fallbackManifest = {
+      repo: "PVI-FTC/ftc-robot-framework",
+      defaultBranch: "feature/team-3-setup",
+      branches: {
+        "feature/team-3-setup": {
+          folder: ".",
+          commit: "local",
+          recordings: [
+            { file: "auto-Team3PedroPilotAutoOpMode.json", label: "Team3PedroPilotAutoOpMode" },
+            { file: "auto-Team3AutonomousOpMode.json", label: "Team3AutonomousOpMode" },
+            { file: "auto-Team3AutoOpMode.json", label: "Team3AutoOpMode" },
+            { file: "auto-Team3TempStrafeRight8AutoOpMode.json", label: "Team3TempStrafeRight8AutoOpMode" },
+            { file: "auto-Team3WebcamTestAutoOpMode.json", label: "Team3WebcamTestAutoOpMode" }
+          ]
+        },
+        "master": {
+          folder: ".",
+          commit: "local",
+          recordings: [
+            { file: "auto-TeamAAutoOpMode.json", label: "TeamAAutoOpMode" },
+            { file: "auto-TeamAPedroPilotAutoOpMode.json", label: "TeamAPedroPilotAutoOpMode" }
+          ]
+        }
+      }
+    };
 
     const bundledFields = [
       "biobuzz-2026.json"
@@ -396,183 +408,224 @@
       console.log(`[Unity ${type}] ${msg}`);
     }
 
-    const config = {
-      matchWebGLToCanvasSize: false,
-      arguments: [
-        "-recordings", "/recordings",
-        "-fields", "/fields",
-        "-robot", "gobilda-starter-bot"
-      ],
-      dataUrl: "Build/vi_arena.data",
-      frameworkUrl: "Build/vi_arena.framework.js",
-      codeUrl: "Build/vi_arena.wasm",
-      streamingAssetsUrl: "StreamingAssets",
-      companyName: "PVI FTC",
-      productName: "VI_Arena",
-      productVersion: "1.0",
-      showBanner: unityShowBanner,
-      preRun: [function(module) {
-        module.addRunDependency("harness_assets");
-        statusText.textContent = "Preloading BIOBUZZ 3D field and autonomous runs...";
+    function recordingUrl(branchInfo, file) {
+      const folder = branchInfo && branchInfo.folder && branchInfo.folder !== "." ? branchInfo.folder + "/" : "";
+      return "recordings/" + folder + file;
+    }
 
-        const fieldPromises = bundledFields.map(f =>
-          fetch("fields/" + f)
-            .then(res => res.arrayBuffer())
-            .then(buf => ({ dir: "/fields", name: f, data: new Uint8Array(buf) }))
-        );
+    function virtualPath(branchInfo, file) {
+      const folder = branchInfo && branchInfo.folder && branchInfo.folder !== "." ? branchInfo.folder + "/" : "";
+      return "/recordings/" + folder + file;
+    }
 
-        const recPromises = bundledRecordings.map(r =>
-          fetch("recordings/" + r)
-            .then(res => res.arrayBuffer())
-            .then(buf => ({ dir: "/recordings", name: r, data: new Uint8Array(buf) }))
-        );
+    function writeToEmscriptenFS(module, vPath, bytes) {
+      const parts = vPath.split("/").filter(Boolean);
+      const fileName = parts.pop();
+      const dir = "/" + parts.join("/");
+      if (parts.length > 0) {
+        module.FS_createPath("/", parts.join("/"), true, true);
+      }
+      try {
+        module.FS_createDataFile(dir, fileName, bytes, true, true, true);
+      } catch (dup) {
+        module.FS.writeFile(vPath, bytes);
+      }
+      loadedVirtualPaths.add(vPath);
+    }
 
-        Promise.all([...fieldPromises, ...recPromises])
-          .then(files => {
-            files.forEach(file => {
-              try {
-                module.FS_createPath("/", file.dir.replace(/^\//, ""), true, true);
-                module.FS_createDataFile(file.dir, file.name, file.data, true, true, true);
-              } catch (err) {
-                console.warn("FS preload warning:", file.dir + "/" + file.name, err);
-              }
+    function populateBranches(manifest) {
+      if (!teamSelect) return;
+      teamSelect.innerHTML = "";
+      const names = Object.keys(manifest.branches || {});
+      names.forEach(name => {
+        const info = manifest.branches[name];
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = info.commit ? `${name} (${info.commit})` : name;
+        teamSelect.appendChild(opt);
+      });
+      if (manifest.defaultBranch && manifest.branches[manifest.defaultBranch]) {
+        teamSelect.value = manifest.defaultBranch;
+      } else if (names.length > 0) {
+        teamSelect.value = names[0];
+      }
+    }
+
+    function renderBranchRuns(branchName) {
+      if (!recordingSelect) return;
+      recordingSelect.innerHTML = "";
+      const info = manifestData?.branches?.[branchName];
+      if (teamBadge) {
+        teamBadge.textContent = branchName || "PVI FTC";
+      }
+      if (!info || !info.recordings || info.recordings.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No autonomous runs";
+        recordingSelect.appendChild(opt);
+        return;
+      }
+      info.recordings.forEach(r => {
+        const opt = document.createElement("option");
+        opt.value = r.file;
+        opt.textContent = r.label || r.file;
+        recordingSelect.appendChild(opt);
+      });
+    }
+
+    async function ensureAndOpenRecording(branchName, fileName) {
+      if (!globalUnityInstance || !fileName) return;
+      const info = manifestData?.branches?.[branchName];
+      if (!info) {
+        openRecording("/recordings/" + fileName);
+        return;
+      }
+      const vPath = virtualPath(info, fileName);
+      if (!loadedVirtualPaths.has(vPath)) {
+        try {
+          const url = recordingUrl(info, fileName);
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
+          const buf = await res.arrayBuffer();
+          writeToEmscriptenFS(globalUnityInstance.Module, vPath, new Uint8Array(buf));
+        } catch (err) {
+          console.error("Failed to fetch recording:", err);
+          alert("Could not load recording: " + err.message);
+          return;
+        }
+      }
+      openRecording(vPath);
+    }
+
+    async function bootViewer() {
+      try {
+        const res = await fetch("recordings/manifest.json?t=" + Date.now());
+        manifestData = res.ok ? await res.json() : fallbackManifest;
+      } catch (e) {
+        console.warn("Could not load manifest.json, using fallback:", e);
+        manifestData = fallbackManifest;
+      }
+
+      populateBranches(manifestData);
+      const initialBranch = teamSelect ? teamSelect.value : manifestData.defaultBranch;
+      renderBranchRuns(initialBranch);
+
+      const initialInfo = manifestData.branches[initialBranch];
+      const initialRecordings = initialInfo ? initialInfo.recordings : [];
+
+      const config = {
+        matchWebGLToCanvasSize: false,
+        arguments: [
+          "-recordings", "/recordings",
+          "-fields", "/fields",
+          "-robot", "gobilda-starter-bot"
+        ],
+        dataUrl: "Build/vi_arena.data",
+        frameworkUrl: "Build/vi_arena.framework.js",
+        codeUrl: "Build/vi_arena.wasm",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "PVI FTC",
+        productName: "VI_Arena",
+        productVersion: "1.0",
+        showBanner: unityShowBanner,
+        preRun: [function(module) {
+          module.addRunDependency("harness_assets");
+          statusText.textContent = "Preloading BIOBUZZ 3D field and autonomous runs...";
+
+          const fieldPromises = bundledFields.map(f =>
+            fetch("fields/" + f)
+              .then(res => res.arrayBuffer())
+              .then(buf => ({ vPath: "/fields/" + f, data: new Uint8Array(buf) }))
+          );
+
+          const recPromises = initialRecordings.map(r =>
+            fetch(recordingUrl(initialInfo, r.file))
+              .then(res => res.arrayBuffer())
+              .then(buf => ({ vPath: virtualPath(initialInfo, r.file), data: new Uint8Array(buf) }))
+          );
+
+          Promise.all([...fieldPromises, ...recPromises])
+            .then(files => {
+              files.forEach(file => {
+                try {
+                  writeToEmscriptenFS(module, file.vPath, file.data);
+                } catch (err) {
+                  console.warn("FS preload warning:", file.vPath, err);
+                }
+              });
+              module.removeRunDependency("harness_assets");
+            })
+            .catch(err => {
+              console.error("Asset preload failed:", err);
+              module.removeRunDependency("harness_assets");
             });
-            module.removeRunDependency("harness_assets");
-          })
-          .catch(err => {
-            console.error("Asset preload failed:", err);
-            module.removeRunDependency("harness_assets");
+        }]
+      };
+
+      createUnityInstance(canvas, config, (progress) => {
+        progressFill.style.width = (progress * 100) + "%";
+        if (progress < 0.9) {
+          statusText.textContent = `Compiling 3D Engine & Shader Assets (${Math.round(progress * 100)}%)...`;
+        } else {
+          statusText.textContent = "Launching 3D Field View...";
+        }
+      }).then((instance) => {
+        globalUnityInstance = instance;
+        overlay.classList.add("hidden");
+
+        if (recordingSelect && recordingSelect.value) {
+          ensureAndOpenRecording(teamSelect ? teamSelect.value : initialBranch, recordingSelect.value);
+        }
+
+        if (teamSelect) {
+          teamSelect.addEventListener("change", (e) => {
+            const branch = e.target.value;
+            renderBranchRuns(branch);
+            if (recordingSelect && recordingSelect.value) {
+              ensureAndOpenRecording(branch, recordingSelect.value);
+            }
           });
-      }]
-    };
-
-    createUnityInstance(canvas, config, (progress) => {
-      progressFill.style.width = (progress * 100) + "%";
-      if (progress < 0.9) {
-        statusText.textContent = `Compiling 3D Engine & Shader Assets (${Math.round(progress * 100)}%)...`;
-      } else {
-        statusText.textContent = "Launching 3D Field View...";
-      }
-    }).then((instance) => {
-      globalUnityInstance = instance;
-      overlay.classList.add("hidden");
-
-      const teamProfiles = {
-        team3: {
-          name: "Team 3 (BioBuzz)",
-          badge: "Team 3 WebGL",
-          branch: "feature/team-3-setup",
-          runs: [
-            { value: "auto-Team3PedroPilotAutoOpMode.json", text: "Team3PedroPilotAutoOpMode (Pedro Pathing)" },
-            { value: "auto-Team3AutonomousOpMode.json", text: "Team3AutonomousOpMode (Score Specimen)" },
-            { value: "auto-Team3AutoOpMode.json", text: "Team3AutoOpMode" },
-            { value: "auto-Team3TempStrafeRight8AutoOpMode.json", text: "Team3TempStrafeRight8AutoOpMode" },
-            { value: "auto-Team3WebcamTestAutoOpMode.json", text: "Team3WebcamTestAutoOpMode" }
-          ]
-        },
-        team2: {
-          name: "Team 2",
-          badge: "Team 2 WebGL",
-          branch: "Team2-Robot-Code",
-          runs: [
-            { value: "auto-Team3AutonomousOpMode.json", text: "Team 2 Autonomous (Simulated Specimen)" }
-          ]
-        },
-        team4: {
-          name: "Team 4",
-          badge: "Team 4 WebGL",
-          branch: "Team_4_Branch",
-          runs: [
-            { value: "auto-Team3AutoOpMode.json", text: "Team 4 Autonomous (Simulated Sample)" }
-          ]
-        },
-        teamA: {
-          name: "Team A (Starter Bot)",
-          badge: "Team A WebGL",
-          branch: "master",
-          runs: [
-            { value: "auto-TeamAAutoOpMode.json", text: "TeamAAutoOpMode (Autonomous Demo)" }
-          ]
         }
-      };
 
-      function renderTeamRuns(teamKey, autoPlayFirst = true) {
-        if (!recordingSelect) return;
-        recordingSelect.innerHTML = "";
+        // Setup fullscreen
+        document.querySelector("#btn-fullscreen").onclick = () => {
+          instance.SetFullscreen(1);
+        };
 
-        let runsToRender = [];
-        if (teamKey === "all") {
-          if (teamBadge) teamBadge.textContent = "All Teams WebGL";
-          for (const [key, profile] of Object.entries(teamProfiles)) {
-            profile.runs.forEach(r => {
-              const tag = key === "team3" ? "[Team 3]" : key === "teamA" ? "[Team A]" : `[${profile.name}]`;
-              runsToRender.push({ value: r.value, text: `${tag} ${r.text}` });
-            });
+        // Dropdown selection change
+        recordingSelect.addEventListener("change", (e) => {
+          ensureAndOpenRecording(teamSelect ? teamSelect.value : initialBranch, e.target.value);
+        });
+
+        // Drag & Drop support
+        window.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          dropHint.style.display = "flex";
+        });
+        window.addEventListener("dragleave", (e) => {
+          if (e.relatedTarget === null) dropHint.style.display = "none";
+        });
+        window.addEventListener("drop", (e) => {
+          e.preventDefault();
+          dropHint.style.display = "none";
+          if (e.dataTransfer.files.length > 0) {
+            handleFileInput(e.dataTransfer.files[0]);
           }
-        } else if (teamProfiles[teamKey]) {
-          const profile = teamProfiles[teamKey];
-          if (teamBadge) teamBadge.textContent = profile.badge;
-          runsToRender = [...profile.runs];
-        }
-
-        runsToRender.forEach(r => {
-          const opt = document.createElement("option");
-          opt.value = r.value;
-          opt.textContent = r.text;
-          recordingSelect.appendChild(opt);
         });
 
-        if (runsToRender.length > 0 && autoPlayFirst && globalUnityInstance) {
-          openRecording("/recordings/" + runsToRender[0].value);
-        }
-      }
-
-      if (teamSelect) {
-        teamSelect.addEventListener("change", (e) => {
-          renderTeamRuns(e.target.value, true);
+        // File input picker
+        fileInput.addEventListener("change", (e) => {
+          if (e.target.files.length > 0) {
+            handleFileInput(e.target.files[0]);
+          }
         });
-      }
-
-      // Initial populate
-      renderTeamRuns(teamSelect ? teamSelect.value : "team3", false);
-
-      // Setup fullscreen
-      document.querySelector("#btn-fullscreen").onclick = () => {
-        instance.SetFullscreen(1);
-      };
-
-      // Dropdown selection change
-      recordingSelect.addEventListener("change", (e) => {
-        const file = e.target.value;
-        openRecording("/recordings/" + file);
+      }).catch((msg) => {
+        alert("Error initializing 3D WebGL Arena: " + msg);
+        console.error(msg);
       });
+    }
 
-      // Drag & Drop support
-      window.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        dropHint.style.display = "flex";
-      });
-      window.addEventListener("dragleave", (e) => {
-        if (e.relatedTarget === null) dropHint.style.display = "none";
-      });
-      window.addEventListener("drop", (e) => {
-        e.preventDefault();
-        dropHint.style.display = "none";
-        if (e.dataTransfer.files.length > 0) {
-          handleFileInput(e.dataTransfer.files[0]);
-        }
-      });
-
-      // File input picker
-      fileInput.addEventListener("change", (e) => {
-        if (e.target.files.length > 0) {
-          handleFileInput(e.target.files[0]);
-        }
-      });
-    }).catch((msg) => {
-      alert("Error initializing 3D WebGL Arena: " + msg);
-      console.error(msg);
-    });
+    bootViewer();
 
     function openRecording(path) {
       if (globalUnityInstance) {
@@ -648,33 +701,16 @@
 
     function openCurrentOpModeCode() {
       const val = recordingSelect.value || "";
-      const currentTeam = teamSelect ? teamSelect.value : "team3";
-      let branch = "feature/team-3-setup";
-      let targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/Team3TeleOp.java";
-
-      if (currentTeam === "teamA" || val.includes("TeamA")) {
-        branch = "master";
-        targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/TeamAAutoOpMode.java";
-      } else if (currentTeam === "team2" || val.includes("Team2")) {
-        branch = "Team2-Robot-Code";
-      } else if (currentTeam === "team4" || val.includes("Team4")) {
-        branch = "Team_4_Branch";
-      } else {
-        if (val.includes("PedroPilot")) {
-          targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3PedroPilotAutoOpMode.java";
-        } else if (val.includes("AutonomousOpMode")) {
-          targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutonomousOpMode.java";
-        } else if (val.includes("AutoOpMode")) {
-          targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutoOpMode.java";
-        } else if (val.includes("TempStrafeRight8")) {
-          targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3TempStrafeRight8AutoOpMode.java";
-        } else if (val.includes("WebcamTest")) {
-          targetPath = "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3WebcamTestAutoOpMode.java";
-        }
-      }
+      const selectedBranch = (teamSelect && teamSelect.value && !teamSelect.value.startsWith("custom_"))
+        ? teamSelect.value
+        : (manifestData?.defaultBranch || "feature/team-3-setup");
+      const className = val.replace(/^auto-/, "").replace(/\.json$/, "");
+      let targetPath = className
+        ? `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/${className}.java`
+        : "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutonomousOpMode.java";
 
       if (window.openCodeInspector) {
-        window.openCodeInspector(targetPath, branch);
+        window.openCodeInspector(targetPath, selectedBranch);
       }
     }
   </script>

@@ -1,56 +1,62 @@
-name: Auto-Sync Teams & Generate 3D Runs
+name: Auto-Sync All Branches & Generate 3D Runs
 
 permissions:
   contents: write
+
 on:
   schedule:
-    # Run once daily at 06:00 UTC
-    - cron: '0 6 * * *'
+    # Check for updated team branches every 2 hours
+    - cron: '0 */2 * * *'
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Upstream branch from PVI-FTC/ftc-robot-framework to sync'
-        required: true
-        type: choice
-        options:
-          - feature/team-3-setup
-          - Team2-Robot-Code
-          - team-2-pedro-3-implementation
-          - Team_4_Branch
-          - TeamA-Mini1-Basic-Auto
-          - master
-        default: 'feature/team-3-setup'
+      force:
+        description: 'Force rebuild all branches even if commit unchanged'
+        required: false
+        default: 'false'
+        type: boolean
 
 jobs:
   sync-and-simulate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout Repository (skip large LFS binaries)
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          lfs: false
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Set up Python 3
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      - name: Run Auto-Sync & Simulation Pipeline
+      - name: Sync and simulate all branches from PVI-FTC/ftc-robot-framework
         run: |
-          BRANCH="${{ github.event.inputs.branch || 'feature/team-3-setup' }}"
-          chmod +x scripts/sync_and_generate.sh
-          bash scripts/sync_and_generate.sh "$BRANCH"
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            python3 web/sync-all-branches.py --force
+          else
+            python3 web/sync-all-branches.py
+          fi
 
-      - name: Commit and Push Updated Recordings & Configurations
+      - name: Restore working files
+        run: |
+          git checkout -- TeamCode build.dependencies.gradle th_src/harness.properties || true
+
+      - name: Commit and Push Updated Recordings
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Sim Bot"
-          git add configs/ web/vi_arena/recordings/ web/build/ th_src/harness.properties web/harness.properties TeamCode/
-          git diff-index --quiet HEAD || (git commit -m "Auto-sync team code and update 3D autonomous recordings" && git push origin main)
-
+          git add web/vi_arena/recordings/
+          if git diff --cached --quiet; then
+            echo "No recording changes to commit."
+          else
+            git commit -m "Auto-sync autonomous recordings from PVI-FTC/ftc-robot-framework"
+            git pull --rebase origin main
+            git push origin main
+          fi

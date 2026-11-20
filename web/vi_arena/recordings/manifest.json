@@ -1,0 +1,26 @@
+{
+  "repo": "PVI-FTC/ftc-robot-framework",
+  "updatedAt": "2026-11-19T21:40:00Z",
+  "defaultBranch": "feature/team-3-setup",
+  "branches": {
+    "feature/team-3-setup": {
+      "folder": ".",
+      "commit": "67f14a8",
+      "recordings": [
+        { "file": "auto-Team3PedroPilotAutoOpMode.json", "label": "Team3PedroPilotAutoOpMode" },
+        { "file": "auto-Team3AutonomousOpMode.json", "label": "Team3AutonomousOpMode" },
+        { "file": "auto-Team3AutoOpMode.json", "label": "Team3AutoOpMode" },
+        { "file": "auto-Team3TempStrafeRight8AutoOpMode.json", "label": "Team3TempStrafeRight8AutoOpMode" },
+        { "file": "auto-Team3WebcamTestAutoOpMode.json", "label": "Team3WebcamTestAutoOpMode" }
+      ]
+    },
+    "master": {
+      "folder": ".",
+      "commit": "4a8c6da",
+      "recordings": [
+        { "file": "auto-TeamAAutoOpMode.json", "label": "TeamAAutoOpMode" },
+        { "file": "auto-TeamAPedroPilotAutoOpMode.json", "label": "TeamAPedroPilotAutoOpMode" }
+      ]
+    }
+  }
+}
