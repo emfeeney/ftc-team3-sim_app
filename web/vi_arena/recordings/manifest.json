@@ -1,6 +1,6 @@
 {
   "repo": "PVI-FTC/ftc-robot-framework",
-  "updatedAt": "2026-11-20T12:19:16Z",
+  "updatedAt": "2026-11-20T21:38:57Z",
   "defaultBranch": "feature/team-3-setup",
   "branches": {
     "feature/team-3-setup": {
@@ -221,31 +221,11 @@
     },
     "TeamA_TeleOp_MQ2": {
       "folder": "TeamA_TeleOp_MQ2",
-      "commit": "ae31a85",
+      "commit": "e937bdf",
       "recordings": [
-        {
-          "file": "auto-HiveAutoBlue.json",
-          "label": "HiveAutoBlue"
-        },
-        {
-          "file": "auto-HiveAutoRed.json",
-          "label": "HiveAutoRed"
-        },
-        {
-          "file": "auto-SimpleLeave.json",
-          "label": "SimpleLeave"
-        },
-        {
-          "file": "auto-TeamAAutoOpMode.json",
-          "label": "TeamAAutoOpMode"
-        },
         {
           "file": "auto-TeamAPedroPilotAutoOpMode.json",
           "label": "TeamAPedroPilotAutoOpMode"
-        },
-        {
-          "file": "auto-TeamAStrafeLeftAuto.json",
-          "label": "TeamAStrafeLeftAuto"
         }
       ]
     },
