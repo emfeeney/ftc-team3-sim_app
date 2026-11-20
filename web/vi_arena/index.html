@@ -102,31 +102,32 @@
       color: #c9d1d9;
       border: 1px solid #363b42;
       border-radius: 6px;
-      height: 32px;
-      padding: 0 12px;
-      font-size: 13px;
+      height: 30px;
+      padding: 0 9px;
+      font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       white-space: nowrap;
       flex-shrink: 0;
       transition: all 0.15s ease;
     }
-    #team-select { max-width: 230px; }
-    #recording-select { max-width: 300px; }
-    #scale-select { max-width: 150px; }
-    /* Narrow windows: drop captions and secondary words so nothing wraps */
-    @media (max-width: 1360px) {
+    .brand .badge { display: none; }
+    #team-select { max-width: 190px; }
+    #recording-select { max-width: 220px; }
+    #scale-select { max-width: 120px; }
+    /* Narrow windows: drop captions and secondary words so nothing overflows */
+    @media (max-width: 1480px) {
       .ctl-label { display: none; }
-      #recording-select { max-width: 240px; }
-    }
-    @media (max-width: 1180px) {
-      .btn-text-optional { display: none; }
       #team-select { max-width: 170px; }
-      #recording-select { max-width: 200px; }
-      .brand .badge { display: none; }
+      #recording-select { max-width: 195px; }
+    }
+    @media (max-width: 1260px) {
+      .btn-text-optional { display: none; }
+      #team-select { max-width: 150px; }
+      #recording-select { max-width: 175px; }
     }
     select:hover, button:hover, .file-btn:hover {
       background: #30363d;
