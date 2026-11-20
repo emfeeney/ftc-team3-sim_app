@@ -9,9 +9,9 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
   <!-- Code Inspector & Competition Suite -->
-  <link rel="stylesheet" href="../code-inspector.css" />
-  <link rel="stylesheet" href="../competition-suite.css" />
-  <link rel="stylesheet" href="../start-pose-picker.css" />
+  <link rel="stylesheet" href="assets/code-inspector.css" />
+  <link rel="stylesheet" href="assets/competition-suite.css" />
+  <link rel="stylesheet" href="assets/start-pose-picker.css" />
   <style>
     * {
       box-sizing: border-box;
@@ -515,6 +515,7 @@
 
       const config = {
         matchWebGLToCanvasSize: false,
+        autoSyncPersistentDataPath: true,
         arguments: [
           "-recordings", "/recordings",
           "-fields", "/fields",
@@ -715,10 +716,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
   <!-- Code Inspector Script -->
-  <script src="../code-inspector.js"></script>
+  <script src="assets/code-inspector.js"></script>
   <!-- Competition & Match Strategy Suite -->
-  <script src="../competition-suite.js"></script>
+  <script src="assets/competition-suite.js"></script>
   <!-- Start Pose Picker & Live Simulation -->
-  <script src="../start-pose-picker.js"></script>
+  <script src="assets/start-pose-picker.js"></script>
 </body>
 </html>

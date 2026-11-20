@@ -25,6 +25,10 @@ public class GenerateTeam3AutonomousRecordingsTest {
                     RunRecorder recorder = RunRecorder.attachTo(runner);
                     runner.run(1.0, MatchPeriod.AUTONOMOUS.seconds());
                     RunRecording recording = recorder.recording();
+                    if (recording.loops().isEmpty()) {
+                        System.err.println("Skipped Autonomous " + e.name() + " (0 loops recorded).");
+                        continue;
+                    }
                     Path file = RunRecordingJson.fileInDefaultFolder("auto-" + e.simpleName());
                     RunRecordingJson.save(recording, file);
                     System.out.println("Saved 3D recording to: " + file.getFileName());
