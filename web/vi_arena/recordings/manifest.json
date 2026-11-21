@@ -1,23 +1,23 @@
 {
   "repo": "PVI-FTC/ftc-robot-framework",
-  "updatedAt": "2026-11-20T02:56:17Z",
+  "updatedAt": "2026-11-21T04:39:28Z",
   "defaultBranch": "feature/team-3-setup",
   "branches": {
     "feature/team-3-setup": {
-      "folder": ".",
+      "folder": "feature__team-3-setup",
       "commit": "67f14a8",
       "recordings": [
         {
-          "file": "auto-Team3PedroPilotAutoOpMode.json",
-          "label": "Team3PedroPilotAutoOpMode"
+          "file": "auto-Team3AutoOpMode.json",
+          "label": "Team3AutoOpMode"
         },
         {
           "file": "auto-Team3AutonomousOpMode.json",
           "label": "Team3AutonomousOpMode"
         },
         {
-          "file": "auto-Team3AutoOpMode.json",
-          "label": "Team3AutoOpMode"
+          "file": "auto-Team3PedroPilotAutoOpMode.json",
+          "label": "Team3PedroPilotAutoOpMode"
         },
         {
           "file": "auto-Team3TempStrafeRight8AutoOpMode.json",
@@ -26,13 +26,33 @@
         {
           "file": "auto-Team3WebcamTestAutoOpMode.json",
           "label": "Team3WebcamTestAutoOpMode"
+        },
+        {
+          "file": "auto-TeamAAutoOpMode.json",
+          "label": "TeamAAutoOpMode"
+        },
+        {
+          "file": "auto-TeamAPedroPilotAutoOpMode.json",
+          "label": "TeamAPedroPilotAutoOpMode"
         }
       ]
     },
     "master": {
-      "folder": ".",
+      "folder": "master",
       "commit": "4a8c6da",
       "recordings": [
+        {
+          "file": "auto-HiveAutoBlue.json",
+          "label": "HiveAutoBlue"
+        },
+        {
+          "file": "auto-HiveAutoRed.json",
+          "label": "HiveAutoRed"
+        },
+        {
+          "file": "auto-SimpleLeave.json",
+          "label": "SimpleLeave"
+        },
         {
           "file": "auto-TeamAAutoOpMode.json",
           "label": "TeamAAutoOpMode"
@@ -100,14 +120,6 @@
         {
           "file": "auto-SimpleLeave.json",
           "label": "SimpleLeave"
-        },
-        {
-          "file": "auto-SimpleShoot.json",
-          "label": "SimpleShoot"
-        },
-        {
-          "file": "auto-SimplerShoot.json",
-          "label": "SimplerShoot"
         },
         {
           "file": "auto-TeamAAutoOpMode.json",
@@ -221,7 +233,7 @@
     },
     "TeamA_TeleOp_MQ2": {
       "folder": "TeamA_TeleOp_MQ2",
-      "commit": "ae31a85",
+      "commit": "e937bdf",
       "recordings": [
         {
           "file": "auto-HiveAutoBlue.json",
@@ -236,16 +248,8 @@
           "label": "SimpleLeave"
         },
         {
-          "file": "auto-TeamAAutoOpMode.json",
-          "label": "TeamAAutoOpMode"
-        },
-        {
           "file": "auto-TeamAPedroPilotAutoOpMode.json",
           "label": "TeamAPedroPilotAutoOpMode"
-        },
-        {
-          "file": "auto-TeamAStrafeLeftAuto.json",
-          "label": "TeamAStrafeLeftAuto"
         }
       ]
     },
