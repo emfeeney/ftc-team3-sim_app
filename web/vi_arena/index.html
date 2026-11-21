@@ -361,6 +361,8 @@
 
     let manifestData = null;
     const loadedVirtualPaths = new Set();
+    window.virtualFileCache = new Map();
+    window.customFileVirtualPaths = new Map();
 
     const fallbackManifest = {
       repo: "PVI-FTC/ftc-robot-framework",
@@ -413,12 +415,20 @@
       if (parts.length > 0) {
         module.FS_createPath("/", parts.join("/"), true, true);
       }
+      let actualPath = vPath;
       try {
         module.FS_createDataFile(dir, fileName, bytes, true, true, true);
       } catch (dup) {
-        module.FS.writeFile(vPath, bytes);
+        const dotIdx = fileName.lastIndexOf(".");
+        const base = dotIdx >= 0 ? fileName.slice(0, dotIdx) : fileName;
+        const ext = dotIdx >= 0 ? fileName.slice(dotIdx) : "";
+        const uniqueName = `${base}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}${ext}`;
+        actualPath = (dir === "/" ? "" : dir) + "/" + uniqueName;
+        module.FS_createDataFile(dir, uniqueName, bytes, true, true, true);
       }
-      loadedVirtualPaths.add(vPath);
+      loadedVirtualPaths.add(actualPath);
+      window.virtualFileCache.set(actualPath, bytes);
+      return actualPath;
     }
 
     function populateBranches(manifest) {
@@ -465,17 +475,17 @@
       if (!globalUnityInstance || !fileName) return;
       const info = manifestData?.branches?.[branchName];
       if (!info) {
-        openRecording("/recordings/" + fileName);
+        openRecording(window.customFileVirtualPaths.get(fileName) || ("/recordings/" + fileName));
         return;
       }
-      const vPath = virtualPath(info, fileName);
+      let vPath = virtualPath(info, fileName);
       if (!loadedVirtualPaths.has(vPath)) {
         try {
           const url = recordingUrl(info, fileName);
           const res = await fetch(url);
           if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
           const buf = await res.arrayBuffer();
-          writeToEmscriptenFS(globalUnityInstance.Module, vPath, new Uint8Array(buf));
+          vPath = writeToEmscriptenFS(globalUnityInstance.Module, vPath, new Uint8Array(buf));
         } catch (err) {
           console.error("Failed to fetch recording:", err);
           alert("Could not load recording: " + err.message);
@@ -611,6 +621,7 @@
         fileInput.addEventListener("change", (e) => {
           if (e.target.files.length > 0) {
             handleFileInput(e.target.files[0]);
+            e.target.value = "";
           }
         });
       }).catch((msg) => {
@@ -634,18 +645,17 @@
         alert("Please select a .json harness recording file.");
         return;
       }
+      if (!globalUnityInstance || !globalUnityInstance.Module) {
+        alert("Wait for the 3D Arena to finish loading first.");
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
           const content = new Uint8Array(e.target.result);
           const module = globalUnityInstance.Module;
-          const vPath = "/recordings/" + file.name;
-          try {
-            module.FS_createDataFile("/recordings", file.name, content, true, true, true);
-          } catch(dup) {
-            // Overwrite if exists
-            module.FS.writeFile(vPath, content);
-          }
+          const vPath = writeToEmscriptenFS(module, "/recordings/" + file.name, content);
+          window.customFileVirtualPaths.set(file.name, vPath);
 
           // Inspect header to detect team name
           try {

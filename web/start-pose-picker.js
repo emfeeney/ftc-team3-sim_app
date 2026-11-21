@@ -514,7 +514,13 @@
     }
     if (!vPath) return null;
     try {
-      const bytes = module.FS.readFile(vPath);
+      let bytes = window.virtualFileCache ? window.virtualFileCache.get(vPath) : null;
+      if (!bytes && module.FS && typeof module.FS.readFile === "function") {
+        bytes = module.FS.readFile(vPath);
+      }
+      if (!bytes) {
+        throw new Error("Cached recording bytes unavailable for " + vPath);
+      }
       const text = new TextDecoder().decode(bytes);
       return { vPath, data: JSON.parse(text) };
     } catch (e) {
@@ -592,14 +598,22 @@
       }
 
       const module = window.globalUnityInstance.Module;
-      const fileName = `custom_pose_${Date.now()}.json`;
-      const vPath = `/recordings/${fileName}`;
+      let fileName = `custom_pose_${Date.now()}.json`;
+      let vPath = `/recordings/${fileName}`;
       const encodedBytes = new TextEncoder().encode(JSON.stringify(simData));
 
+      if (typeof module.FS_createPath === "function") {
+        module.FS_createPath("/", "recordings", true, true);
+      }
       try {
         module.FS_createDataFile("/recordings", fileName, encodedBytes, true, true, true);
       } catch (dup) {
-        module.FS.writeFile(vPath, encodedBytes);
+        fileName = `custom_pose_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.json`;
+        vPath = `/recordings/${fileName}`;
+        module.FS_createDataFile("/recordings", fileName, encodedBytes, true, true, true);
+      }
+      if (window.virtualFileCache) {
+        window.virtualFileCache.set(vPath, encodedBytes);
       }
 
       window.openRecording(vPath);
