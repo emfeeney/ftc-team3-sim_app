@@ -21,8 +21,8 @@ plugins {
 // ---------------------------------------------------------------------------
 def harnessSettings = new Properties()
 file('harness.properties').withReader('UTF-8') { harnessSettings.load(it) }
-if (harnessSettings.getProperty('config.version')?.trim() != '5') {
-    throw new GradleException("harness.properties: this harness reads config.version 5, the file says "
+if (harnessSettings.getProperty('config.version')?.trim() != '6') {
+    throw new GradleException("harness.properties: this harness reads config.version 6, the file says "
             + "${harnessSettings.getProperty('config.version')}. See docs/README.md, \"The config file\".")
 }
 // One setting by name, with a clear error if it is missing.
@@ -82,6 +82,7 @@ sourceSets {
                         'pvi/harness/physics/BatteryTest.java',
                         'pvi/harness/physics/FieldObstacleRecordingsTest.java',
                         'pvi/harness/physics/MecanumKinematicsTest.java',
+                        'pvi/harness/physics/PedroPlannedPathTest.java',
                         'pvi/harness/physics/PedroRouteTest.java',
                         'pvi/harness/physics/PositionReportTest.java',
                         'pvi/harness/physics/RealCodeMotionTest.java',
@@ -378,19 +379,12 @@ tasks.register('viewAfterTests', JavaExec) {
 tasks.register('viewRecording', JavaExec) {
     group = 'harness'
     description = 'Opens the viewer window: drives a TeleOp live, replays recordings (build/recordings), runs scenarios.'
-    // Put harness classes before SDK robotLibJars so the harness's AprilTagProcessorImpl
-    // is loaded instead of the SDK's C-library version.
-    classpath = files(
-        sourceSets.viewer.output,
-        sourceSets.main.output,
-        sourceSets.agent.output,
-        configurations.viewerRuntimeClasspath
-    )
+    classpath = sourceSets.viewer.runtimeClasspath
     mainClass = 'pvi.harness.viewer.RecordingViewer'
     workingDir = projectDir
     // The dropdown can run scenarios (real TeamCode), so load the Java agent as tests do:
     // otherwise timed robot code would read the real clock.
-    dependsOn viewerClasses, classes, agentJar
+    dependsOn agentJar
     def viewerAgentFile = agentJar.flatMap { it.archiveFile }
     jvmArgumentProviders.add({ ["-javaagent:${viewerAgentFile.get().asFile.absolutePath}"] } as CommandLineArgumentProvider)
     jvmArgs runJvmArgs   // only the options this Java knows (see the top of this file)
@@ -502,4 +496,3 @@ tasks.register('buildWebWrapper', Copy) {
         into 'build/recordings'
     }
 }
-

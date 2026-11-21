@@ -68,7 +68,7 @@ class GamePiecesTest {
         assertTrue(model.pollenMass().measured() && model.nectarMass().measured(), "AndyMark's weights count as known");
         assertTrue(model.nectarMass().source().contains("AndyMark"), model.nectarMass().source());
         assertEquals(List.of("ball rolling deceleration", "ball wall bounce", "ball-to-ball bounce",
-                "robot-to-ball bounce"), model.unmeasured(), "no source gives these yet");
+                "robot-to-ball bounce", "ball drag coefficient"), model.unmeasured(), "no source gives these yet");
         assertTrue(model.wallBounce().source().startsWith("not given in the BIOBUZZ Competition Manual TU06"),
                 model.wallBounce().source());
     }

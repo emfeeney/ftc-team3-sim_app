@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 
 import pvi.harness.physics.DriveModels;
+import pvi.harness.physics.GamePiece;
+import pvi.harness.physics.PieceModel;
 import pvi.harness.runtime.HarnessConfig;
 import pvi.harness.runtime.JsonReader;
 
@@ -156,16 +158,15 @@ class BridgeUnityPhysicsTest {
      * non-number in physicsState.
      */
     /**
-     * WHAT: A POLLEN the robot pushes keeps rolling after the robot stops, when Unity's physics
-     * moves the robot. The robot (as Unity reports it) backs up at 50 in/s from the start into the
-     * preloaded POLLEN behind it, then stands still; the ball keeps rolling away for several loops.
-     * WHY: The user saw a pushed POLLEN "stop moving the moment the robot stops pushing it" in Live
-     * mode with Physics: Unity. Unity's pose used to count as soon as it arrived, so the runner saw
-     * no move during the loop and gave the ball no speed.
+     * WHAT: With Unity's physics (bridge version 6), the harness leaves the loose balls to Unity: a ball
+     * Unity reports in "pieces" is where the next frame says, and the robot backing into a ball doesn't
+     * move it on the harness's side (Unity's physics pushes it).
+     * WHY: Manager decision D30: Unity moves the balls, the harness keeps the rules. Moving a ball on both
+     * sides would make it jump between two answers.
      */
     @Test
     @SuppressWarnings("unchecked")
-    void aPushedBallKeepsRollingAfterTheRobotStops() {
+    void unitysBallsAreWhereUnitySays() {
         Map<String, Object> loaded = loadTeleOp("unity");
         double halfLength = (Double) ((Map<String, Object>) loaded.get("robotPhysics")).get("lengthInches") / 2;
         Map<String, Object> ball = pollenBehindTheStart((List<Object>) ((Map<String, Object>) loaded.get("header")).get("pieces"));
@@ -174,22 +175,77 @@ class BridgeUnityPhysicsTest {
         send("{\"type\": \"init\"}");
         send("{\"type\": \"play\", \"physicsState\": " + state(0, 0, 0, 0, "") + "}");
 
-        // Back up along -x until the robot's back edge is 4 in past the ball's center.
+        // The robot backs up through the ball's spot; Unity doesn't say the ball moved.
         double x = 0;
         double seenX = ballX;
         while (x - halfLength > ballX - 4) {
             x -= 1;
             seenX = pieceX(send("{\"type\": \"step\", \"physicsState\": " + state(x, 0, 0, -50, "") + "}"), id, seenX);
         }
-        String stopped = "{\"type\": \"step\", \"physicsState\": " + state(x, 0, 0, 0, "") + "}";
-        double atStop = pieceX(send(stopped), id, seenX);
-        double later = atStop;
-        for (int i = 0; i < 10; i++) {
-            later = pieceX(send(stopped), id, later);
-        }
+        assertEquals(ballX, seenX, 1e-9, "the harness didn't push it");
 
-        assertTrue(atStop < ballX - 1, "the robot pushed the ball (from x " + ballX + " to " + atStop + ")");
-        assertTrue(atStop - later > 1.0, "the ball rolled on " + (atStop - later) + " in after the robot stopped");
+        // Unity says where it is now.
+        Map<String, Object> frame = send("{\"type\": \"step\", \"physicsState\": " + state(x, 0, 0, 0, "")
+                + ", \"pieces\": [{\"id\": \"" + id + "\", \"xInches\": -40.5, \"yInches\": 2.25, \"zInches\": 1.4,"
+                + " \"vxInchesPerSecond\": -12, \"vyInchesPerSecond\": 0, \"vzInchesPerSecond\": 0}]}");
+        assertEquals("frame", frame.get("type"), String.valueOf(frame));
+        assertEquals(-40.5, pieceX(frame, id, seenX), 1e-9, "where Unity put it");
+    }
+
+    /**
+     * WHAT: "loaded" gives Unity the balls' facts from the harness's PieceModel, each with its unit and
+     * whether it was measured: the masses are measured, the bounces and rolling are guesses.
+     * WHY: Unity's physics uses the same numbers as the harness's, without a second copy to keep in step.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void loadedGivesTheBallFacts() {
+        Map<String, Object> model = (Map<String, Object>) loadTeleOp("unity").get("pieceModel");
+        PieceModel harness = PieceModel.bioBuzz();
+
+        Map<String, Object> pollen = (Map<String, Object>) model.get("pollenMass");
+        assertEquals(harness.pollenMass().value(), (Double) pollen.get("value"), 1e-9);
+        assertEquals("g", pollen.get("unit"));
+        assertEquals(true, pollen.get("measured"));
+        Map<String, Object> wall = (Map<String, Object>) model.get("wallBounce");
+        assertEquals(harness.wallBounce().value(), (Double) wall.get("value"), 1e-9);
+        assertEquals(false, wall.get("measured"), "a placeholder says so");
+        for (String name : List.of("rollingDeceleration", "pieceBounce", "robotBounce", "nectarMass")) {
+            assertNotNull(model.get(name), name);
+        }
+    }
+
+    /**
+     * WHAT: "loaded" also gives each ball kind's air drag (version 7, D40): the harness's own
+     * PieceModel.dragPerInch, in 1/in, a placeholder like the drag coefficient it comes from.
+     * WHY: Unity slows flying balls by the same k times speed squared as the harness.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void loadedGivesTheAirDragPerBallKind() {
+        Map<String, Object> model = (Map<String, Object>) loadTeleOp("unity").get("pieceModel");
+        PieceModel harness = PieceModel.bioBuzz();
+
+        Map<String, Object> pollen = (Map<String, Object>) model.get("pollenDragPerInch");
+        Map<String, Object> nectar = (Map<String, Object>) model.get("nectarDragPerInch");
+        assertEquals(harness.dragPerInch(GamePiece.POLLEN), (Double) pollen.get("value"), 1e-8, "6 significant digits");
+        assertEquals(harness.dragPerInch(GamePiece.RED_NECTAR), (Double) nectar.get("value"), 1e-8);
+        assertEquals("1/in", pollen.get("unit"));
+        assertEquals(harness.dragCoefficient().measured(), pollen.get("measured"));
+        assertEquals(harness.dragCoefficient().measured(), nectar.get("measured"));
+    }
+
+    /** WHAT: Every frame carries "pieceLaunches", a list (empty when nothing was launched), in either physics. */
+    @Test
+    void framesCarryPieceLaunches() {
+        loadTeleOp("unity");
+        send("{\"type\": \"init\"}");
+        Map<String, Object> unity = send("{\"type\": \"play\", \"physicsState\": " + state(0, 0, 0, 0, "") + "}");
+        assertTrue(unity.get("pieceLaunches") instanceof List, String.valueOf(unity));
+
+        send("{\"type\": \"load\", \"opMode\": \"" + BridgeTestOpModes.teleOp().id() + "\"}");
+        Map<String, Object> harness = send("{\"type\": \"init\"}");
+        assertEquals(List.of(), harness.get("pieceLaunches"));
     }
 
     /** The preloaded POLLEN right behind the robot's start (the one nearest the middle). */
@@ -233,6 +289,9 @@ class BridgeUnityPhysicsTest {
 
         Map<String, Object> badNumber = send("{\"type\": \"step\", \"physicsState\": {\"xInches\": \"far\"}}");
         assertTrue(((String) badNumber.get("message")).contains("physicsState.xInches must be a number"), String.valueOf(badNumber));
+        Map<String, Object> badPiece = send("{\"type\": \"step\", \"physicsState\": " + state(0, 0, 0, 0, "")
+                + ", \"pieces\": [{\"id\": \"pollen-preload-1\", \"xInches\": \"here\"}]}");
+        assertTrue(((String) badPiece.get("message")).contains("pieces[pollen-preload-1].xInches must be a number"), String.valueOf(badPiece));
 
         Map<String, Object> wrong = send("{\"type\": \"load\", \"opMode\": \"" + BridgeTestOpModes.teleOp().id() + "\", \"physics\": \"real\"}");
         assertTrue(((String) wrong.get("message")).contains("\"physics\" must be"), String.valueOf(wrong));
@@ -241,6 +300,8 @@ class BridgeUnityPhysicsTest {
         send("{\"type\": \"init\"}");
         Map<String, Object> notWanted = send("{\"type\": \"step\", \"physicsState\": " + state(0, 0, 0, 0, "") + "}");
         assertTrue(((String) notWanted.get("message")).contains("must not carry"), String.valueOf(notWanted));
+        Map<String, Object> noPieces = send("{\"type\": \"step\", \"pieces\": []}");
+        assertTrue(((String) noPieces.get("message")).contains("must not carry \"pieces\""), String.valueOf(noPieces));
         assertEquals("frame", send("{\"type\": \"step\"}").get("type"), "the session carries on");
     }
 }

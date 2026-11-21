@@ -8,7 +8,9 @@ import java.util.Locale;
 import java.util.Map;
 
 import pvi.harness.physics.GamePiece;
+import pvi.harness.physics.HiveTilt;
 import pvi.harness.physics.Pose;
+import pvi.harness.runtime.PlannedPath;
 import pvi.harness.runtime.RunRecording;
 
 /**
@@ -84,6 +86,20 @@ public final class RecordingView {
             }
             pieces.add(current);
         }
+    }
+
+    /**
+     * Every HIVE's tips and swing at loop {@code index}: the loop's own list, or the header's if the loop
+     * has none. Empty for a recording older than version 6.
+     */
+    public List<HiveTilt> hives(int index) {
+        List<HiveTilt> hives = loop(index).hives();
+        return hives.isEmpty() ? recording.header().hives() : hives;
+    }
+
+    /** Every HIVE's CELLs at loop {@code index}, with the balls in each (empty for an older recording). */
+    public List<HiveView.Cell> cells(int index) {
+        return HiveView.cells(hives(index), pieces(index));
     }
 
     /** Every game piece at loop {@code index}, in the header's order (empty for a run without pieces). */
@@ -166,6 +182,26 @@ public final class RecordingView {
     public List<Pose> trail(int index) {
         checkIndex(index);
         return Collections.unmodifiableList(poses.subList(0, posesUpTo[index]));
+    }
+
+    /**
+     * The yellow planned-path line at loop {@code index} (D39): the Pedro plan in force then, from the
+     * robot onward ({@link PlannedPath#aheadOf}). Empty if the robot has no plan at that moment.
+     */
+    public List<PlannedPath.Point> plannedLine(int index) {
+        RunRecording.LoopRecord loop = loop(index);
+        PlannedPath current = null;
+        for (PlannedPath plan : recording.plannedPaths()) {
+            if (plan.sinceInitSeconds() > loop.sinceInitSeconds()) {
+                break;
+            }
+            current = plan;
+        }
+        if (current == null || current.isEmpty()) {
+            return List.of();
+        }
+        Pose pose = loop.pose();
+        return pose == null ? current.points() : current.aheadOf(pose.xInches(), pose.yInches());
     }
 
     /** Top-of-field caption, e.g. {@code TeamAAutoOpMode  LOOP  t=1.24 s}. */

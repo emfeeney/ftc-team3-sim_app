@@ -16,6 +16,9 @@ import java.util.Map;
 import pvi.harness.hardware.FakeHardwareMap;
 import pvi.harness.hardware.RobotConfigs;
 import pvi.harness.physics.DriveModels;
+import pvi.harness.physics.Pose;
+import pvi.harness.physics.PoseEstimator;
+import pvi.harness.physics.WheelReader;
 import pvi.harness.runtime.RunRecording.LoopRecord;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -158,7 +161,7 @@ class RunRecordingTest {
     void headerDescribesTheRunTheRobotAndItsModel() {
         RunRecording.Header header = recordTeamAAutonomous().header();
 
-        assertEquals(5, header.version());
+        assertEquals(RunRecording.VERSION, header.version());
         assertEquals(HarnessConfig.load().field(), header.field(), "the field it ran on, from harness.properties");
         assertEquals("inches", header.distanceUnit());
         assertEquals("radians", header.angleUnit());
@@ -259,12 +262,12 @@ class RunRecordingTest {
         Map<String, Object> json = (Map<String, Object>) JsonReader.parse(Files.readString(saved, StandardCharsets.UTF_8));
 
         // Top level and header.
-        assertEquals(List.of("header", "gamepad1Rumbles", "gamepad2Rumbles", "events", "loops"), List.copyOf(json.keySet()));
+        assertEquals(List.of("header", "gamepad1Rumbles", "gamepad2Rumbles", "events", "plannedPaths", "score", "loops"), List.copyOf(json.keySet()));
         Map<String, Object> header = (Map<String, Object>) json.get("header");
         assertEquals(List.of("version", "distanceUnit", "angleUnit", "timeUnit", "robotConfig", "opMode",
-                "period", "loopPeriodSeconds", "startPose", "driveModel", "pieces", "cameras", "field"), List.copyOf(header.keySet()));
+                "period", "loopPeriodSeconds", "startPose", "driveModel", "pieces", "cameras", "field", "hives"), List.copyOf(header.keySet()));
         assertEquals("AUTONOMOUS", header.get("period"));
-        assertEquals(5.0, header.get("version"));
+        assertEquals((double) RunRecording.VERSION, header.get("version"));
         assertEquals("radians", header.get("angleUnit"));
         assertEquals(List.of("xInches", "yInches", "headingRadians"),
                 List.copyOf(((Map<String, Object>) header.get("startPose")).keySet()));
@@ -280,7 +283,7 @@ class RunRecordingTest {
         for (Object item : loops) {
             Map<String, Object> loop = (Map<String, Object>) item;
             assertEquals(List.of("sinceInitSeconds", "matchTimeSeconds", "stage", "pose", "motors", "servos",
-                    "autoStep", "telemetry", "gamepad1", "gamepad2", "aprilTags", "pieces"), List.copyOf(loop.keySet()));
+                    "autoStep", "telemetry", "gamepad1", "gamepad2", "aprilTags", "pieces", "hives", "score"), List.copyOf(loop.keySet()));
             assertEquals(List.of("buttons", "leftStickX", "leftStickY", "rightStickX", "rightStickY",
                     "leftTrigger", "rightTrigger"), List.copyOf(((Map<String, Object>) loop.get("gamepad1")).keySet()));
             List<Object> motors = (List<Object>) loop.get("motors");
@@ -356,6 +359,34 @@ class RunRecordingTest {
         // That robot never moves, so also check a run where it does (x changes, y stays 0).
         RunRecording moving = recordTeamAAutonomous();
         assertEquals(RunRecordingJson.format(moving), RunRecordingJson.format(RunRecordingJson.parse(RunRecordingJson.format(moving))));
+    }
+
+    /**
+     * WHAT: A heading just inside +π or -π saves, loads and saves again as the same text, and loads as the same
+     * direction.
+     *
+     * <p>HOW: A robot that doesn't move starts facing π - 0.00000001 rad, then -π + 0.00000001 rad. Rounded to 6
+     * places, both are just outside ±π, which a Pose would wrap to the other side (3.141593 became -3.141592).</p>
+     *
+     * <p>WHY: The viewer's dropdown re-saves loaded recordings, and ClaudeHiveAutoRed ends facing almost exactly
+     * π; the second save came out different.</p>
+     */
+    @Test
+    void aHeadingNextToPiLoadsBackUnchanged() {
+        for (double heading : new double[] {Math.PI - 1e-8, -Math.PI + 1e-8}) {
+            OpModeRunner runner = new OpModeRunner(new RumbleDemoTeleOp(), RobotConfigs.teamA());
+            Pose start = new Pose(0, 0, heading);
+            runner.usePositionEstimator(new PoseEstimator(DriveModels.teamA(), WheelReader.teamA(), start));
+            RunRecorder recorder = RunRecorder.attachTo(runner);
+            runner.run(0.1, 0.5).assertNoException();
+            String saved = RunRecordingJson.format(recorder.recording());
+
+            RunRecording loaded = RunRecordingJson.parse(saved);
+
+            assertEquals(saved, RunRecordingJson.format(loaded), "heading " + heading);
+            Pose loadedPose = loaded.loops().get(loaded.loops().size() - 1).pose();
+            assertEquals(0, start.headingDifferenceDegreesTo(loadedPose), 1e-4, "same direction for " + heading);
+        }
     }
 
     /**

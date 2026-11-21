@@ -2,6 +2,7 @@ package pvi.harness.runtime;
 
 import pvi.harness.ds.FakeTelemetry;
 import pvi.harness.ds.RumbleRecord;
+import pvi.harness.scoring.MatchScore;
 
 import java.util.List;
 
@@ -34,11 +35,13 @@ public final class RunResult {
     private final List<RumbleRecord> gamepad1Rumbles;
     /** Rumbles sent to gamepad 2 (operator), in order. */
     private final List<RumbleRecord> gamepad2Rumbles;
+    /** The match points (D50): settled after STOP, as it stood for a run that crashed. */
+    private final MatchScore score;
 
     /** Made by OpModeRunner at the end of a run; tests only read it. */
     RunResult(Throwable exception, Stage exceptionStage, double initSeconds, double matchSeconds,
               int loopCount, boolean stopRequestedByOpMode, FakeTelemetry telemetry,
-              List<RumbleRecord> gamepad1Rumbles, List<RumbleRecord> gamepad2Rumbles) {
+              List<RumbleRecord> gamepad1Rumbles, List<RumbleRecord> gamepad2Rumbles, MatchScore score) {
         this.exception = exception;
         this.exceptionStage = exceptionStage;
         this.initSeconds = initSeconds;
@@ -48,7 +51,15 @@ public final class RunResult {
         this.telemetry = telemetry;
         this.gamepad1Rumbles = List.copyOf(gamepad1Rumbles);
         this.gamepad2Rumbles = List.copyOf(gamepad2Rumbles);
+        this.score = score;
     }
+
+    /**
+     * Both alliances' match points for this run (Competition Manual TU06 §10.5, manager decision D50): the period's
+     * column of the point table, taken after the pieces came to rest following STOP (see
+     * {@link OpModeRunner#finalScore()}). Never null.
+     */
+    public MatchScore score() { return score; }
 
     /** True when the OpMode threw an exception during the run. */
     public boolean crashed() { return exception != null; }

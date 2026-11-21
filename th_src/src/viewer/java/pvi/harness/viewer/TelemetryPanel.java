@@ -184,6 +184,37 @@ public final class TelemetryPanel extends JComponent implements Scrollable {
             }) + CARD_GAP;
         }
 
+        // HIVE CELLs: which is up and the balls in each (recordings from version 6 on).
+        List<HiveView.Cell> cells = view.cells(index);
+        if (!cells.isEmpty()) {
+            List<String> hiveLines = HiveView.lines(view.hives(index), cells);
+            y = card(g, "HIVE CELLs", y, width, hiveLines.size() * 17 + 2, (top) -> {
+                int lineY = top + 13;
+                Font mono = Theme.mono(12f);
+                for (String line : hiveLines) {
+                    Color color = line.contains(" UP ") ? Theme.GREEN : line.contains("TIPPING") ? Theme.AMBER : Theme.TEXT;
+                    text(g, ellipsize(g, line, mono, width - 24), PAD + 12, lineY, mono, color);
+                    lineY += 17;
+                }
+            }) + CARD_GAP;
+        }
+
+        // Score: each alliance's match points at this moment (recordings from version 8 on; D50).
+        pvi.harness.scoring.MatchScore score = ScoreView.scoreAt(recording, index);
+        if (score != null) {
+            List<String> scoreLines = ScoreView.lines(score);
+            y = card(g, "Score", y, width, scoreLines.size() * 17 + 2, (top) -> {
+                int lineY = top + 13;
+                Font mono = Theme.mono(12f);
+                for (String line : scoreLines) {
+                    Color color = line.startsWith("RED") ? Theme.RED : line.startsWith("BLUE") ? Theme.ACCENT
+                            : line.startsWith("  ") && line.endsWith("=   0") ? Theme.MUTED : Theme.TEXT;
+                    text(g, ellipsize(g, line, mono, width - 24), PAD + 12, lineY, mono, color);
+                    lineY += 17;
+                }
+            }) + CARD_GAP;
+        }
+
         // Motors and servos: a gauge each.
         int rows = loop.motors().size() + loop.servos().size();
         y = card(g, "Motors" + (loop.servos().isEmpty() ? "" : " / servos"), y, width, Math.max(1, rows) * 22, (top) -> {

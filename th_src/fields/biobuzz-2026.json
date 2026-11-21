@@ -1,6 +1,6 @@
 {
   "format": "pvi-harness-field",
-  "version": 2,
+  "version": 4,
   "id": "biobuzz-2026",
   "name": "BIOBUZZ",
   "season": "2026-2027",
@@ -15,7 +15,7 @@
   "redWall": "-y",
   "blueWall": "+y",
   "accuracyNote": "'cad' parts are measured from FIRST's official field CAD. 'nominal' parts use the manual's dimensions (+/- 1 in). 'approximate' parts are worked out from the manual's figures and can be a few inches off. The CAD itself (Unity: Resources/Field/biobuzz-2026) is what the 3D view draws when it is present.",
-  "startingNote": "The HIVES tip during a match. Cells, arms and their AprilTags are given in the starting position (Figure 10-2): red audience cell up, red far cell down; blue far cell up, blue audience cell down. Each HIVE is tilted 30 degrees.",
+  "startingNote": "The HIVES tip during a match. Cells, arms and their AprilTags are given in the starting position (Figure 10-2): red audience cell up, red far cell down; blue far cell up, blue audience cell down. Each HIVE is tilted 30 degrees. See hives for how they tip; a CELL ball's recorded position is where it sits with its HIVE in this starting position.",
   "elements": [
     {"id": "red-alliance-area", "name": "Red ALLIANCE AREA (outside the field)", "shape": "box", "xInches": 0, "yInches": -99, "zInches": 0.05, "lengthInches": 97, "widthInches": 54, "heightInches": 0.1, "color": "#3A1517", "accuracy": "nominal"},
     {"id": "blue-alliance-area", "name": "Blue ALLIANCE AREA (outside the field)", "shape": "box", "xInches": 0, "yInches": 99, "zInches": 0.05, "lengthInches": 97, "widthInches": 54, "heightInches": 0.1, "color": "#15213D", "accuracy": "nominal"},
@@ -40,10 +40,10 @@
     {"id": "blue-hive-arm", "name": "Blue HIVE arm between its cells", "shape": "box", "xInches": 0, "yInches": 12.75, "zInches": 43.95, "lengthInches": 18.84, "widthInches": 2, "heightInches": 2, "tiltDegrees": -30, "color": "#B9C2CB", "accuracy": "approximate"},
     {"id": "blue-cell-far", "name": "Blue CELL, far side (AprilTags 42-45), tilted up", "shape": "box", "xInches": -10.97, "yInches": 12.75, "zInches": 55.82, "lengthInches": 12.04, "widthInches": 20, "heightInches": 16, "tiltDegrees": -30, "color": "#2D55C8", "accuracy": "approximate"},
     {"id": "blue-cell-audience", "name": "Blue CELL, audience side (AprilTags 38-41), tilted down", "shape": "box", "xInches": 15.77, "yInches": 12.75, "zInches": 40.38, "lengthInches": 12.04, "widthInches": 20, "heightInches": 16, "tiltDegrees": -30, "color": "#2D55C8", "accuracy": "approximate"},
-    {"id": "flower-far", "name": "FLOWER on the far wall", "shape": "cylinder", "xInches": -68.04, "yInches": -23.39, "zInches": 11.325, "diameterInches": 5, "heightInches": 22.65, "color": "#D9A84A", "accuracy": "cad"},
-    {"id": "flower-blue-wall", "name": "FLOWER on the blue wall", "shape": "cylinder", "xInches": -23.39, "yInches": 68.04, "zInches": 11.325, "diameterInches": 5, "heightInches": 22.65, "color": "#D9A84A", "accuracy": "cad"},
-    {"id": "flower-red-wall", "name": "FLOWER on the red wall", "shape": "cylinder", "xInches": 23.39, "yInches": -68.04, "zInches": 11.325, "diameterInches": 5, "heightInches": 22.65, "color": "#D9A84A", "accuracy": "cad"},
-    {"id": "flower-audience", "name": "FLOWER on the audience wall", "shape": "cylinder", "xInches": 68.04, "yInches": 23.39, "zInches": 11.325, "diameterInches": 5, "heightInches": 22.65, "color": "#D9A84A", "accuracy": "cad"}
+    {"id": "flower-far", "name": "FLOWER on the far wall", "shape": "cylinder", "xInches": -68.04, "yInches": -23.39, "zInches": 11.325, "diameterInches": 5, "heightInches": 22.65, "scoringBottomInches": 5.25, "scoringTopInches": 20.25, "scoringRadiusInches": 1.99, "color": "#D9A84A", "accuracy": "cad"},
+    {"id": "flower-blue-wall", "name": "FLOWER on the blue wall", "shape": "cylinder", "xInches": -23.39, "yInches": 68.04, "zInches": 11.325, "diameterInches": 5, "heightInches": 22.65, "scoringBottomInches": 5.25, "scoringTopInches": 20.25, "scoringRadiusInches": 1.99, "color": "#D9A84A", "accuracy": "cad"},
+    {"id": "flower-red-wall", "name": "FLOWER on the red wall", "shape": "cylinder", "xInches": 23.39, "yInches": -68.04, "zInches": 11.325, "diameterInches": 5, "heightInches": 22.65, "scoringBottomInches": 5.25, "scoringTopInches": 20.25, "scoringRadiusInches": 1.99, "color": "#D9A84A", "accuracy": "cad"},
+    {"id": "flower-audience", "name": "FLOWER on the audience wall", "shape": "cylinder", "xInches": 68.04, "yInches": 23.39, "zInches": 11.325, "diameterInches": 5, "heightInches": 22.65, "scoringBottomInches": 5.25, "scoringTopInches": 20.25, "scoringRadiusInches": 1.99, "color": "#D9A84A", "accuracy": "cad"}
   ],
   "pieceObstaclesNote": "What a POLLEN or NECTAR ball rolling on the tiles can hit (besides the perimeter walls), measured from FIRST's official field CAD. Each shape has straight upright sides from bottomInches to topInches. The sides are where the CAD is at ball-center height (1.4 to 1.8 in), where a rolling ball's widest point touches. A ball of radius r can hit a shape only if the shape's bottomInches is below the ball's top (2 r). topInches 4.0 means taller than any ball (the frame legs go on up, leaning inward). The FLOWER heads start 3.75 in up, so balls on the tiles roll under them and only meet the two wall brackets. Left out: the HIVE baskets and CELLs (all above 30 in) and parts under 0.6 in tall (the flat foot-bar plate, the FLOWER base plate, washers), which balls roll over.",
   "pieceObstacles": [
@@ -65,6 +65,27 @@
     {"id": "flower-audience-bracket-1", "name": "FLOWER wall bracket 1 (audience wall)", "shape": "box", "minXInches": 69.22, "maxXInches": 70.5, "minYInches": 21.5, "maxYInches": 22.78, "bottomInches": 0.5, "topInches": 3.75, "accuracy": "cad"},
     {"id": "flower-audience-bracket-2", "name": "FLOWER wall bracket 2 (audience wall)", "shape": "box", "minXInches": 69.22, "maxXInches": 70.5, "minYInches": 24.01, "maxYInches": 25.29, "bottomInches": 0.5, "topInches": 3.75, "accuracy": "cad"},
     {"id": "flower-audience-head", "name": "FLOWER on the audience wall, above the balls", "shape": "cylinder", "xInches": 68.04, "yInches": 23.39, "radiusInches": 3.13, "bottomInches": 3.75, "topInches": 22.65, "accuracy": "cad"}
+  ],
+  "hivesNote": "Each HIVE swings on its pivot between its two stable positions (manual 9.5, 9.6.2, 10.5.1). The pivot, tilt, sides and band are from the CAD. tipMassGrams and tipSeconds are PLACEHOLDERS: the manual only says 'enough POLLEN or NECTAR'. 200 g was picked so the 3 staged NECTAR (123.9 g) hold and a robot's 4 pre-loaded POLLEN on top of them (223.5 g) tip it. Change them here when someone measures a real HIVE.",
+  "hives": [
+    {"id": "red-hive", "name": "Red HIVE", "pivotXInches": 0, "pivotYInches": -12.75, "pivotZInches": 43.95, "minYInches": -23.27, "maxYInches": -2.21, "tiltDegrees": 30, "startUpSide": 1, "tipMassGrams": 200, "tipSeconds": 1, "cadParts": ["red-hive", "apriltags-red", "other-red-hive"], "elementIds": ["red-hive-arm", "red-cell-far", "red-cell-audience"], "accuracy": "pivot, tilt, sides, band and cells: cad; tipMassGrams and tipSeconds: placeholder", "cells": [{"id": "red-cell-audience", "side": 1, "backInches": 9.44, "openingInches": 21.46, "floorInches": -1.47, "floorUndersideInches": -2.97, "topInches": 12.53, "minYInches": -22.83, "maxYInches": -2.67}, {"id": "red-cell-far", "side": -1, "backInches": 9.44, "openingInches": 21.46, "floorInches": -1.47, "floorUndersideInches": -2.97, "topInches": 12.53, "minYInches": -22.83, "maxYInches": -2.67}]},
+    {"id": "blue-hive", "name": "Blue HIVE", "pivotXInches": 0, "pivotYInches": 12.75, "pivotZInches": 43.95, "minYInches": 2.16, "maxYInches": 23.35, "tiltDegrees": 30, "startUpSide": -1, "tipMassGrams": 200, "tipSeconds": 1, "cadParts": ["blue-hive", "apriltags-blue", "other-blue-hive"], "elementIds": ["blue-hive-arm", "blue-cell-far", "blue-cell-audience"], "accuracy": "pivot, tilt, sides, band and cells: cad; tipMassGrams and tipSeconds: placeholder", "cells": [{"id": "blue-cell-audience", "side": 1, "backInches": 9.44, "openingInches": 21.46, "floorInches": -1.47, "floorUndersideInches": -2.97, "topInches": 12.53, "minYInches": 2.67, "maxYInches": 22.83}, {"id": "blue-cell-far", "side": -1, "backInches": 9.44, "openingInches": 21.46, "floorInches": -1.47, "floorUndersideInches": -2.97, "topInches": 12.53, "minYInches": 2.67, "maxYInches": 22.83}]}
+  ],
+  "flightObstaclesNote": "What a ball in the air can hit besides the walls, the tiles and the CELLs (each HIVE's cells), measured from FIRST's official field CAD (hive-frame, red-hive, blue-hive). 'capsule': a bar from fromInches to toInches, radiusInches thick. 'box': upright sides, minInches to maxInches (x, y, z). 'hiveBox': swings with its HIVE; in that HIVE's own frame at its starting tilt (along: from the pivot along the arm, + toward the +x side; across: square to the arm, + up at the start), plus minYInches..maxYInches. FLOWERs aren't listed yet. All cad.",
+  "flightObstacles": [
+    {"id": "frame-leg-red-audience", "shape": "capsule", "fromInches": [18.28, -23.65, 1.19], "toInches": [0.97, -12.91, 40.0], "radiusInches": 0.75},
+    {"id": "frame-leg-red-far", "shape": "capsule", "fromInches": [-18.33, -23.62, 1.05], "toInches": [-0.93, -12.85, 40.08], "radiusInches": 0.75},
+    {"id": "frame-leg-blue-audience", "shape": "capsule", "fromInches": [18.28, 23.71, 1.16], "toInches": [1.06, 12.96, 39.96], "radiusInches": 0.75},
+    {"id": "frame-leg-blue-far", "shape": "capsule", "fromInches": [-18.27, 23.74, 1.23], "toInches": [-0.97, 12.86, 39.97], "radiusInches": 0.75},
+    {"id": "frame-base-red", "shape": "box", "minInches": [-19.47, -24.73, 0], "maxInches": [19.47, -22.75, 2.15]},
+    {"id": "frame-base-blue", "shape": "box", "minInches": [-19.47, 22.75, 0], "maxInches": [19.47, 24.73, 2.15]},
+    {"id": "frame-top-bar", "shape": "box", "minInches": [-0.5, -11.99, 40.95], "maxInches": [0.5, 12.01, 41.95]},
+    {"id": "frame-axle-red", "shape": "box", "minInches": [-1.53, -13.76, 39.49], "maxInches": [1.53, -10.49, 44.22]},
+    {"id": "frame-axle-blue", "shape": "box", "minInches": [-1.53, 10.49, 39.49], "maxInches": [1.53, 13.76, 44.22]},
+    {"id": "frame-panel-audience", "shape": "box", "minInches": [1.55, -15.1, 34.07], "maxInches": [4.29, 15.1, 40.02]},
+    {"id": "frame-panel-far", "shape": "box", "minInches": [-4.29, -15.1, 34.07], "maxInches": [-1.55, 15.1, 40.02]},
+    {"id": "red-hive-arm", "shape": "hiveBox", "hive": "red-hive", "minAlongInches": -21.56, "maxAlongInches": 21.56, "minAcrossInches": -2.71, "maxAcrossInches": -0.35, "minYInches": -13.33, "maxYInches": -12.15},
+    {"id": "blue-hive-arm", "shape": "hiveBox", "hive": "blue-hive", "minAlongInches": -21.56, "maxAlongInches": 21.56, "minAcrossInches": -2.71, "maxAcrossInches": -0.35, "minYInches": 12.15, "maxYInches": 13.33}
   ],
   "aprilTags": [
     {"id": 30, "name": "RED SCORING", "cluster": "RED SCORING", "sizeInches": 3.25, "clusterOffsetInches": {"x": -6.5, "y": 7.1874, "z": -5.622}, "xInches": -10.23, "yInches": -6.24, "zInches": 36.3, "facing": {"x": 0.5, "y": 0, "z": -0.866}, "moves": true, "accuracy": "cad"},

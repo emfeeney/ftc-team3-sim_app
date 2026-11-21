@@ -12,8 +12,8 @@ package pvi.harness.physics;
  * @param kind    {@link #POLLEN}, {@link #RED_NECTAR} or {@link #BLUE_NECTAR}
  * @param state   where it is in the game: {@link #FIELD} (loose on the tiles, can be pushed),
  *                {@link #FLOWER}, {@link #CELL}, {@link #ALLIANCE_AREA}, or {@link #HELD}
- *                (reserved for an intake later). Other states may be added later without a
- *                format change.
+ *                (carried by the robot), or {@link #FLYING} (launched, in the air). Other states may be
+ *                added later without a format change.
  * @param xInches center, FTC field frame (inches, +x toward the audience)
  * @param yInches center, FTC field frame (+y from the red wall toward the blue wall)
  * @param zInches height of the center above the tiles (a ball on the tiles is at its radius)
@@ -44,7 +44,7 @@ public record GamePiece(String id, String kind, String state, double xInches, do
     public static final ModelValue NECTAR_DIAMETER = ModelValue.measured(3.6, ModelValue.INCHES,
             MANUAL + ": approximately 3.6 in (9.1 cm) Gopher ResisDent polyethylene ball, red or blue, am-5852");
 
-    /** Loose on the tiles: the robot can push it. The only state that moves for now. */
+    /** Loose on the tiles: the robot can push it. */
     public static final String FIELD = "field";
     /** Stacked in a FLOWER. */
     public static final String FLOWER = "flower";
@@ -52,8 +52,10 @@ public record GamePiece(String id, String kind, String state, double xInches, do
     public static final String CELL = "cell";
     /** Waiting outside the field in an ALLIANCE AREA. */
     public static final String ALLIANCE_AREA = "alliance-area";
-    /** Carried by the robot. Reserved for an intake; nothing makes a piece held yet. */
+    /** Carried by the robot: its intake took the ball, or it started there as a pre-load. */
     public static final String HELD = "held";
+    /** Launched by the robot and in the air, falling under gravity until it lands back on the tiles. */
+    public static final String FLYING = "flying";
 
     /** Refuses a missing id, kind or state, an unknown kind, and non-numbers. */
     public GamePiece {

@@ -16,8 +16,13 @@ import pvi.harness.ds.Button;
 import pvi.harness.ds.RumbleRecord;
 import pvi.harness.hardware.CameraSetup;
 import pvi.harness.physics.GamePiece;
+import pvi.harness.physics.HiveTilt;
 import pvi.harness.physics.ModelValue;
 import pvi.harness.physics.Pose;
+import pvi.harness.scoring.Alliance;
+import pvi.harness.scoring.AllianceScore;
+import pvi.harness.scoring.MatchScore;
+import pvi.harness.scoring.ScoreItem;
 
 /**
  * Writes a {@link RunRecording} as JSON, by hand, so the harness needs no JSON library.
@@ -40,6 +45,9 @@ public final class RunRecordingJson {
     /** Decimal places kept for every number (a millionth of an inch, radian or second). */
     private static final int DECIMALS = 6;
 
+    /** The most a number can move when it's rounded to {@value #DECIMALS} places (with some room to spare). */
+    private static final double ROUNDING = 1e-6;
+
     /** Only static methods here; nothing to create. */
     private RunRecordingJson() {
     }
@@ -55,6 +63,8 @@ public final class RunRecordingJson {
         json.append("  \"gamepad1Rumbles\": ").append(rumbles(recording.gamepad1Rumbles())).append(",\n");
         json.append("  \"gamepad2Rumbles\": ").append(rumbles(recording.gamepad2Rumbles())).append(",\n");
         json.append("  \"events\": ").append(events(recording.events())).append(",\n");
+        json.append("  \"plannedPaths\": ").append(plannedPaths(recording.plannedPaths())).append(",\n");
+        json.append("  \"score\": ").append(score(recording.score())).append(",\n");
         json.append("  \"loops\": [");
         List<RunRecording.LoopRecord> loops = recording.loops();
         for (int i = 0; i < loops.size(); i++) {
@@ -137,7 +147,9 @@ public final class RunRecordingJson {
                 version >= 4 ? readPieces(h.get("pieces"), "header.pieces") : List.of(),
                 // Versions 1 to 4 have no cameras.
                 version >= 5 ? readCameras(h.get("cameras"), "header.cameras") : List.of(),
-                optionalText(h.get("field"), "header.field"));
+                optionalText(h.get("field"), "header.field"),
+                // Versions 1 to 5 have no HIVE tilts.
+                version >= 6 ? readHives(h.get("hives"), "header.hives") : List.of());
 
         List<RunRecording.LoopRecord> loops = new ArrayList<>();
         List<Object> loopItems = array(top.get("loops"), "loops");
@@ -149,7 +161,11 @@ public final class RunRecordingJson {
         return new RunRecording(header, loops,
                 readRumbles(top.get("gamepad1Rumbles"), "gamepad1Rumbles"),
                 readRumbles(top.get("gamepad2Rumbles"), "gamepad2Rumbles"),
-                events);
+                events,
+                // Versions 1 to 6 have no planned paths.
+                version >= 7 ? readPlannedPaths(top.get("plannedPaths"), "plannedPaths") : List.of(),
+                // Versions 1 to 7 have no score.
+                version >= 8 ? readScore(top.get("score"), "score") : null);
     }
 
     private static RunRecording.LoopRecord readLoop(Object value, String where, int version) {
@@ -207,7 +223,21 @@ public final class RunRecordingJson {
                 screens,
                 readGamepad(loop.get("gamepad1"), where + ".gamepad1"),
                 readGamepad(loop.get("gamepad2"), where + ".gamepad2"),
-                aprilTags, pieces);
+                aprilTags, pieces, version >= 6 ? readHives(loop.get("hives"), where + ".hives") : List.of(),
+                version >= 8 ? readScore(loop.get("score"), where + ".score") : null);
+    }
+
+    /** A list of HIVE tilts. */
+    private static List<HiveTilt> readHives(Object value, String where) {
+        List<HiveTilt> hives = new ArrayList<>();
+        List<Object> items = array(value, where);
+        for (int i = 0; i < items.size(); i++) {
+            Map<String, Object> hive = object(items.get(i), where + "[" + i + "]");
+            hives.add(new HiveTilt(text(hive.get("id"), where + "[" + i + "].id"),
+                    whole(hive.get("tips"), where + "[" + i + "].tips"),
+                    decimal(hive.get("swingDegrees"), where + "[" + i + "].swingDegrees")));
+        }
+        return hives;
     }
 
     /** Read back from a file, a camera fact keeps only its number and whether it was measured. */
@@ -287,7 +317,18 @@ public final class RunRecordingJson {
         Map<String, Object> p = object(value, where);
         return new Pose(decimal(p.get("xInches"), where + ".xInches"),
                 decimal(p.get("yInches"), where + ".yInches"),
-                decimal(p.get("headingRadians"), where + ".headingRadians"));
+                readHeading(decimal(p.get("headingRadians"), where + ".headingRadians")));
+    }
+
+    /**
+     * A heading read back from JSON. A heading just inside ±π is written rounded, as 3.141593 or -3.141593, which
+     * is just outside ±π. Turned into a Pose, that would wrap to the other side (-3.141592) and write differently
+     * the next time. So a value that far outside ±π (within rounding) is read as exactly π, the heading the writer
+     * meant; see {@link #heading(double)}.
+     */
+    private static double readHeading(double radians) {
+        boolean justOutside = Math.abs(radians) > Math.PI && Math.abs(radians) - Math.PI <= ROUNDING;
+        return justOutside ? Math.PI : radians;
     }
 
     private static RunRecording.DriveModelValues readDriveModel(Object value, String where) {
@@ -337,6 +378,30 @@ public final class RunRecordingJson {
                     text(e.get("text"), at + ".text")));
         }
         return events;
+    }
+
+    private static List<PlannedPath> readPlannedPaths(Object value, String where) {
+        List<PlannedPath> plans = new ArrayList<>();
+        List<Object> items = array(value, where);
+        for (int i = 0; i < items.size(); i++) {
+            String at = where + "[" + i + "]";
+            Map<String, Object> p = object(items.get(i), at);
+            List<PlannedPath.Point> points = new ArrayList<>();
+            List<Object> pointItems = array(p.get("points"), at + ".points");
+            for (int k = 0; k < pointItems.size(); k++) {
+                String pointAt = at + ".points[" + k + "]";
+                List<Object> xy = array(pointItems.get(k), pointAt);
+                if (xy.size() != 2) {
+                    throw new IllegalArgumentException(pointAt + " should be [xInches, yInches], but has "
+                            + xy.size() + " numbers.");
+                }
+                points.add(new PlannedPath.Point(decimal(xy.get(0), pointAt + "[0]"),
+                        decimal(xy.get(1), pointAt + "[1]")));
+            }
+            plans.add(new PlannedPath(decimal(p.get("sinceInitSeconds"), at + ".sinceInitSeconds"),
+                    decimal(p.get("matchTimeSeconds"), at + ".matchTimeSeconds"), points));
+        }
+        return plans;
     }
 
     // Type checks with clear messages. "where" is the field's path in the file.
@@ -419,6 +484,16 @@ public final class RunRecordingJson {
         return events(events);
     }
 
+    /** Match points as a JSON object, as in a saved recording's "score" ("null" for none; for the bridge's frames). */
+    public static String scoreJson(MatchScore score) {
+        return score(score);
+    }
+
+    /** Planned paths as a JSON array, as in a saved recording's "plannedPaths" (for the bridge's frames). */
+    public static String plannedPathsJson(List<PlannedPath> plans) {
+        return plannedPaths(plans);
+    }
+
     /**
      * A gamepad from already-parsed JSON (see {@link JsonReader}), in the same layout as a
      * recording's "gamepad1". Names the exact field when something is wrong.
@@ -445,7 +520,8 @@ public final class RunRecordingJson {
                 + field("driveModel", driveModel(h.driveModel())) + ", "
                 + field("pieces", pieces(h.pieces())) + ", "
                 + field("cameras", cameras(h.cameras())) + ", "
-                + field("field", h.field() == null ? "null" : string(h.field()))
+                + field("field", h.field() == null ? "null" : string(h.field())) + ", "
+                + field("hives", hives(h.hives()))
                 + "}";
     }
 
@@ -479,8 +555,17 @@ public final class RunRecordingJson {
         return "{"
                 + field("xInches", number(p.xInches())) + ", "
                 + field("yInches", number(p.yInches())) + ", "
-                + field("headingRadians", number(p.headingRadians()))
+                + field("headingRadians", heading(p.headingRadians()))
                 + "}";
+    }
+
+    /**
+     * A heading in radians for JSON. Rounding a heading just inside ±π (like π - 0.00000001) gives a number just
+     * outside it, and -π and +π face the same way, so such a heading is written as π: one spelling that loads back
+     * to the same Pose and writes the same text again (see {@link #readHeading(double)}).
+     */
+    private static String heading(double radians) {
+        return Math.abs(Double.parseDouble(number(radians))) > Math.PI ? number(Math.PI) : number(radians);
     }
 
     private static String rumbles(List<RumbleRecord> rumbles) {
@@ -492,6 +577,24 @@ public final class RunRecordingJson {
                     .append(field("totalDurationMs", Integer.toString(r.totalDurationMs()))).append(", ")
                     .append(field("pulses", Integer.toString(r.pulses())))
                     .append("}");
+        }
+        return json.append("]").toString();
+    }
+
+    private static String plannedPaths(List<PlannedPath> plans) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < plans.size(); i++) {
+            PlannedPath p = plans.get(i);
+            json.append(i == 0 ? "" : ", ").append("{")
+                    .append(field("sinceInitSeconds", number(p.sinceInitSeconds()))).append(", ")
+                    .append(field("matchTimeSeconds", number(p.matchTimeSeconds()))).append(", ")
+                    .append("\"points\": [");
+            for (int k = 0; k < p.points().size(); k++) {
+                PlannedPath.Point point = p.points().get(k);
+                json.append(k == 0 ? "" : ", ").append("[").append(number(point.xInches())).append(", ")
+                        .append(number(point.yInches())).append("]");
+            }
+            json.append("]}");
         }
         return json.append("]").toString();
     }
@@ -564,8 +667,97 @@ public final class RunRecordingJson {
                 + field("gamepad1", gamepad(loop.gamepad1())) + ", "
                 + field("gamepad2", gamepad(loop.gamepad2())) + ", "
                 + field("aprilTags", aprilTags.toString()) + ", "
-                + field("pieces", pieces(loop.pieces()))
+                + field("pieces", pieces(loop.pieces())) + ", "
+                + field("hives", hives(loop.hives())) + ", "
+                + field("score", score(loop.score()))
                 + "}";
+    }
+
+    /** Match points (D50): the period, the robot's alliance, whether the pieces had settled, and each alliance's lines. */
+    private static String score(MatchScore score) {
+        if (score == null) {
+            return "null";
+        }
+        return "{"
+                + field("period", string(score.period().name())) + ", "
+                + field("robotAlliance", score.robotAlliance() == null ? "null" : string(score.robotAlliance().key())) + ", "
+                + field("settled", Boolean.toString(score.settled())) + ", "
+                + field("settleSeconds", number(score.settleSeconds())) + ", "
+                + field("red", allianceScore(score.red())) + ", "
+                + field("blue", allianceScore(score.blue())) + ", "
+                + field("notes", strings(score.notes()))
+                + "}";
+    }
+
+    private static String allianceScore(AllianceScore a) {
+        StringBuilder items = new StringBuilder("[");
+        for (int i = 0; i < a.items().size(); i++) {
+            ScoreItem item = a.items().get(i);
+            items.append(i == 0 ? "" : ", ").append("{")
+                    .append(field("name", string(item.name()))).append(", ")
+                    .append(field("count", Integer.toString(item.count()))).append(", ")
+                    .append(field("pointsEach", Integer.toString(item.pointsEach()))).append(", ")
+                    .append(field("points", Integer.toString(item.points()))).append("}");
+        }
+        items.append("]");
+        return "{"
+                + field("total", Integer.toString(a.total())) + ", "
+                + field("rankingPoints", Integer.toString(a.rankingPoints())) + ", "
+                + field("swarm", Boolean.toString(a.swarmRp())) + ", "
+                + field("pollinator1", Boolean.toString(a.pollinator1Rp())) + ", "
+                + field("pollinator2", Boolean.toString(a.pollinator2Rp())) + ", "
+                + field("items", items.toString())
+                + "}";
+    }
+
+    private static MatchScore readScore(Object value, String where) {
+        if (value == null) {
+            return null;
+        }
+        Map<String, Object> s = object(value, where);
+        String period = text(s.get("period"), where + ".period");
+        String robotAlliance = optionalText(s.get("robotAlliance"), where + ".robotAlliance");
+        return new MatchScore(MatchPeriod.valueOf(period),
+                robotAlliance == null ? null : Alliance.parse(robotAlliance),
+                bool(s.get("settled"), where + ".settled"),
+                decimal(s.get("settleSeconds"), where + ".settleSeconds"),
+                readAllianceScore(Alliance.RED, s.get("red"), where + ".red"),
+                readAllianceScore(Alliance.BLUE, s.get("blue"), where + ".blue"),
+                texts(s.get("notes"), where + ".notes"));
+    }
+
+    private static AllianceScore readAllianceScore(Alliance alliance, Object value, String where) {
+        Map<String, Object> a = object(value, where);
+        List<ScoreItem> items = new ArrayList<>();
+        List<Object> itemList = array(a.get("items"), where + ".items");
+        for (int i = 0; i < itemList.size(); i++) {
+            String at = where + ".items[" + i + "]";
+            Map<String, Object> item = object(itemList.get(i), at);
+            items.add(new ScoreItem(text(item.get("name"), at + ".name"), whole(item.get("count"), at + ".count"),
+                    whole(item.get("pointsEach"), at + ".pointsEach"), whole(item.get("points"), at + ".points")));
+        }
+        return new AllianceScore(alliance, items, whole(a.get("total"), where + ".total"),
+                bool(a.get("swarm"), where + ".swarm"), bool(a.get("pollinator1"), where + ".pollinator1"),
+                bool(a.get("pollinator2"), where + ".pollinator2"));
+    }
+
+    private static boolean bool(Object value, String where) {
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        throw new IllegalArgumentException(where + " should be true or false, got " + value + ".");
+    }
+
+    /** Each HIVE: its tips so far, and its swing from its starting position in degrees (positive takes its +x side up). */
+    private static String hives(List<HiveTilt> hives) {
+        StringBuilder json = new StringBuilder("[");
+        for (int i = 0; i < hives.size(); i++) {
+            HiveTilt h = hives.get(i);
+            json.append(i == 0 ? "" : ", ").append("{").append(field("id", string(h.id()))).append(", ")
+                    .append(field("tips", Integer.toString(h.tips()))).append(", ")
+                    .append(field("swingDegrees", number(h.swingDegrees()))).append("}");
+        }
+        return json.append("]").toString();
     }
 
     /** Each camera as plain numbers, plus the names of the facts that are guesses. */

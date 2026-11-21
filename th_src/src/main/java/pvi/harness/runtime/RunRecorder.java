@@ -56,9 +56,14 @@ public final class RunRecorder {
     private final Map<String, GamePiece> piecesRecorded = new HashMap<>();
     /** A piece counts as moved once it is more than this far (inches) from where it was last recorded. */
     static final double PIECE_MOVE_INCHES = 0.01;
+    /** Finds a Pedro follower in the robot code and reports its planned path when it changes (D39). */
+    private final PedroPathWatcher pedroPaths;
+    /** The planned paths so far, oldest first. */
+    private final List<PlannedPath> plannedPaths = new ArrayList<>();
 
     private RunRecorder(OpModeRunner runner) {
         this.runner = runner;
+        this.pedroPaths = new PedroPathWatcher(runner.opMode());
     }
 
     /**
@@ -122,7 +127,15 @@ public final class RunRecorder {
                 estimator == null ? null : estimator.pose(),
                 motors, servos, autoStep, screens,
                 gamepadState(runner.opMode().gamepad1), gamepadState(runner.opMode().gamepad2),
-                aprilTags, changedPieces(estimator)));
+                aprilTags, changedPieces(estimator), estimator == null ? List.of() : estimator.pieces().hiveTilts(),
+                runner.score()));
+
+        // A robot without Pedro gives one empty plan at the start, which isn't worth keeping.
+        pedroPaths.poll(estimator == null ? null : estimator.pose()).ifPresent(points -> {
+            if (!points.isEmpty() || !plannedPaths.isEmpty()) {
+                plannedPaths.add(new PlannedPath(runner.clock().sinceInit(), runner.clock().sinceStart(), points));
+            }
+        });
     }
 
     /**
@@ -189,6 +202,11 @@ public final class RunRecorder {
         return loops.size();
     }
 
+    /** The Pedro planned paths so far, oldest first (D39); empty for a robot without Pedro. */
+    public List<PlannedPath> plannedPaths() {
+        return List.copyOf(plannedPaths);
+    }
+
     /** The marked events so far (including wall hits), in time order. */
     public List<RunRecording.Event> events() {
         return List.copyOf(eventsWithWallHits(runner.positionEstimator()));
@@ -198,7 +216,7 @@ public final class RunRecorder {
     public RunRecording recording() {
         PoseEstimator estimator = runner.positionEstimator();
         return new RunRecording(header(), loops, runner.driver1().rumbles(), runner.driver2().rumbles(),
-                eventsWithWallHits(estimator));
+                eventsWithWallHits(estimator), plannedPaths, runner.finalScore());
     }
 
     /** What is being run, on which robot, with which drive model: the recording's header. */
@@ -214,7 +232,8 @@ public final class RunRecorder {
                 estimator == null ? null : RunRecording.DriveModelValues.of(estimator.model()),
                 estimator == null ? List.of() : estimator.pieces().initial(),
                 camerasAsRun(),
-                HarnessConfig.load().field());
+                HarnessConfig.load().field(),
+                estimator == null ? List.of() : estimator.pieces().startHiveTilts());
     }
 
     /**

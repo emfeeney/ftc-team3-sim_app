@@ -1,7 +1,7 @@
 /**
- * FTC Custom Robot Start Pose & Live Simulation Controller
+ * FTC Custom Robot Start Pose Controller
  * Provides interactive 2D field canvas placement, heading angle controls,
- * and instant cloud re-simulation (~1s) via Hugging Face Spaces / local Docker backend.
+ * and instant in-browser trajectory replay.
  */
 (function () {
   let modal = null;
@@ -41,7 +41,7 @@
       <div class="spp-dialog" role="dialog" aria-label="Start Pose Picker">
         <div class="spp-header">
           <div class="spp-title-group">
-            <span class="spp-title">🎯 Set Robot Start Pose & Live Simulate</span>
+            <span class="spp-title">🎯 Set Robot Start Pose</span>
             <span id="spp-robot-badge" class="spp-badge">Team 3 (18"×18")</span>
           </div>
           <button class="spp-close-btn" onclick="closeStartPoseModal()" title="Close (Esc)">✕</button>
@@ -155,7 +155,7 @@
     if (!document.getElementById("spp-toast")) {
       const toast = document.createElement("div");
       toast.id = "spp-toast";
-      toast.innerHTML = `<span style="font-size: 16px;">✓</span> <span id="spp-toast-text">Simulation replaying live!</span>`;
+      toast.innerHTML = `<span style="font-size: 16px;">✓</span> <span id="spp-toast-text">Replaying from custom start pose!</span>`;
       document.body.appendChild(toast);
     }
 

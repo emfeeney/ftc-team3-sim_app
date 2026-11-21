@@ -32,11 +32,11 @@ Every run makes a new file; nothing is overwritten.
 Connect the Control Hub by USB-C (or the laptop to its Wi-Fi) and copy the file from
 `FIRST/harness/` on the hub. In Android Studio: **View → Tool Windows → Device Explorer**, open
 `sdcard/FIRST/harness`, right-click the file → **Save As**. Put it in
-`Harness/build/recordings/`.
+`TestHarness/th_src/build/recordings/`.
 
 ## 4. Use it in the harness
 
-- **Watch it:** drag the file onto `Harness/view.bat`, or pick it in the viewer's dropdown. The
+- **Watch it:** drag the file onto `TestHarness/view.bat`, or pick it in the viewer's dropdown. The
   viewer replays the gamepads; the field shows where the **simulated** robot goes with those
   inputs (the real robot's position isn't recorded, see "Limits").
 - **Make a test from it:**
@@ -83,7 +83,7 @@ telemetry.update();
 - It records **only the gamepads** (buttons, sticks, triggers) and the OpMode stages. It doesn't
   record the real robot's position, motor powers or telemetry. When you replay or test it, the
   harness's simulated robot drives with your inputs. Comparing that with where the real robot
-  went is a good way to check the simulation (see `Harness/CALIBRATION.md`).
+  went is a good way to check the simulation (see [CALIBRATION.md](../../docs/CALIBRATION.md)).
 - Timing is to the nearest 20 ms. Very quick taps shorter than one step may be shifted by up to
   one step.
 - A 2-minute drive is about 1.5 MB and is kept in memory until STOP, which is fine on a Control

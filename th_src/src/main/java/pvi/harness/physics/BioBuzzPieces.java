@@ -22,8 +22,22 @@ public final class BioBuzzPieces {
     /** FLOWER centers, from the official CAD: far wall, blue wall, red wall, audience wall. */
     private static final double[][] FLOWERS = {{-68.04, -23.39}, {-23.39, 68.04}, {23.39, -68.04}, {68.04, 23.39}};
     private static final String[] FLOWER_NAMES = {"far", "blue-wall", "red-wall", "audience"};
-    /** Ball center heights for the 4 POLLEN stacked in a FLOWER, top first (approximate). */
-    private static final double[] FLOWER_HEIGHTS = {21.25, 18.45, 15.65, 12.85};
+    /**
+     * The FLOWERs as data, in the same order. Each is against one wall, so straight off the wall is
+     * the one way its bottom ball can't be blocked by it.
+     */
+    private static final List<FlowerSpot> FLOWER_SPOTS = List.of(
+            new FlowerSpot(FLOWER_NAMES[0], FLOWERS[0][0], FLOWERS[0][1], 1, 0),
+            new FlowerSpot(FLOWER_NAMES[1], FLOWERS[1][0], FLOWERS[1][1], 0, -1),
+            new FlowerSpot(FLOWER_NAMES[2], FLOWERS[2][0], FLOWERS[2][1], 0, 1),
+            new FlowerSpot(FLOWER_NAMES[3], FLOWERS[3][0], FLOWERS[3][1], -1, 0));
+    /**
+     * Ball center heights for the 4 POLLEN stacked in a FLOWER, top first: resting on the tiles and on
+     * each other. TU06 9.7 has the lower ring on the tile with a hole for POLLEN to sit in, and the field
+     * CAD has nothing holding a POLLEN up inside the tube (its narrowest hole is 1.69 in radius, the ball's
+     * 1.4). Worked out from those, not measured from a figure.
+     */
+    private static final double[] FLOWER_HEIGHTS = {9.8, 7.0, 4.2, 1.4};
     /** Where the 4 GARDEN POLLEN sit along the wall, from the corner (y for red; mirrored for blue). */
     private static final double[] GARDEN_ALONG = {-70.6, -67.8, -65.0, -62.2};
     /** Sideways offsets of the 4 pre-loaded POLLEN across the robot (inches left of its center). */
@@ -45,8 +59,16 @@ public final class BioBuzzPieces {
     private static final double[] ALLIANCE_X = {-8, -4, 0, 4, 8};
     private static final double ALLIANCE_Y = 76;
 
+    /** The start of each pre-loaded POLLEN's id. */
+    public static final String PRELOAD_ID_PREFIX = "pollen-preload-";
+
     /** Only static methods here; nothing to create. */
     private BioBuzzPieces() {
+    }
+
+    /** The 4 FLOWERs, for the POLLEN stacked in them. */
+    public static List<FlowerSpot> flowers() {
+        return FLOWER_SPOTS;
     }
 
     /**
@@ -116,7 +138,7 @@ public final class BioBuzzPieces {
         List<GamePiece> row = new ArrayList<>();
         for (int i = 0; i < PRELOAD_OFFSETS.length; i++) {
             double left = PRELOAD_OFFSETS[i];
-            row.add(new GamePiece("pollen-preload-" + (i + 1), GamePiece.POLLEN, GamePiece.FIELD,
+            row.add(new GamePiece(PRELOAD_ID_PREFIX + (i + 1), GamePiece.POLLEN, GamePiece.FIELD,
                     robot.xInches() + forward * cos - left * sin,
                     robot.yInches() + forward * sin + left * cos, radius));
         }

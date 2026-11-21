@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -271,9 +271,6 @@
     <div id="viewport-container">
       <canvas id="unity-canvas" tabindex="-1"></canvas>
       <div id="drop-hint">Drop .json recording here to replay</div>
-      <div id="web-mode-pill" style="display: none; position: absolute; background: #0b0e12; border: none; z-index: 15; pointer-events: auto; box-sizing: border-box; cursor: default; user-select: none;" title="This web version replays recorded runs; live driving needs the desktop app">
-        <span style="color: #6e7681; font-size: 10.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; height: 100%; letter-spacing: 0.8px; text-transform: uppercase;"><span style="width: 6px; height: 6px; border-radius: 50%; background: #3fb950; display: inline-block;"></span>Web replay</span>
-      </div>
 
       <div id="loading-overlay">
         <div class="spinner"></div>
@@ -339,16 +336,6 @@
             globalUnityInstance.Module.setCanvasSize(targetWidth, targetHeight);
           } catch(e) {}
         }
-      }
-
-      // Position the Web Mode pill seamlessly over the desktop-only socket buttons
-      const pill = document.querySelector("#web-mode-pill");
-      if (pill) {
-        pill.style.display = "block";
-        pill.style.top = ((100 / canvas.height) * 100) + "%";
-        pill.style.height = ((24 / canvas.height) * 100) + "%";
-        pill.style.right = (((16 + 330 + 8) / canvas.width) * 100) + "%";
-        pill.style.width = (((200 + 8 + 190) / canvas.width) * 100) + "%";
       }
     }
 
@@ -540,13 +527,22 @@
               .then(buf => ({ vPath: "/fields/" + f, data: new Uint8Array(buf) }))
           );
 
+          const robotPromises = [
+            fetch("robots/gobilda-starter-bot/robot.properties")
+              .then(res => {
+                if (!res.ok) throw new Error("Missing robot.properties");
+                return res.arrayBuffer();
+              })
+              .then(buf => ({ vPath: "/robots/gobilda-starter-bot/robot.properties", data: new Uint8Array(buf) }))
+          ];
+
           const recPromises = initialRecordings.map(r =>
             fetch(recordingUrl(initialInfo, r.file))
               .then(res => res.arrayBuffer())
               .then(buf => ({ vPath: virtualPath(initialInfo, r.file), data: new Uint8Array(buf) }))
           );
 
-          Promise.all([...fieldPromises, ...recPromises])
+          Promise.all([...fieldPromises, ...robotPromises, ...recPromises])
             .then(files => {
               files.forEach(file => {
                 try {
@@ -721,7 +717,7 @@
   <script src="assets/code-inspector.js"></script>
   <!-- Competition & Match Strategy Suite -->
   <script src="assets/competition-suite.js"></script>
-  <!-- Start Pose Picker & Live Simulation -->
+  <!-- Start Pose Picker -->
   <script src="assets/start-pose-picker.js"></script>
 </body>
 </html>

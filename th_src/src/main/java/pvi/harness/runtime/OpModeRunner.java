@@ -1,7 +1,9 @@
 package pvi.harness.runtime;
 
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Gamepad;
 
 import java.lang.reflect.Field;
@@ -15,9 +17,15 @@ import pvi.harness.hardware.FakeHardwareMap;
 import pvi.harness.hardware.SimulatedSensor;
 import pvi.harness.hardware.SimulatedSensors;
 import pvi.harness.physics.DriveModels;
+import pvi.harness.physics.GamePieces;
 import pvi.harness.physics.Pose;
 import pvi.harness.physics.PoseEstimator;
 import pvi.harness.physics.WheelReader;
+import pvi.harness.scoring.Alliance;
+import pvi.harness.scoring.MatchScore;
+import pvi.harness.scoring.MatchScorer;
+import pvi.harness.scoring.ScoreInput;
+import pvi.harness.scoring.ScoringField;
 
 /**
  * Runs an iterative {@link OpMode} the way the Robot Controller app does:
@@ -68,6 +76,12 @@ public class OpModeRunner {
     private double loopPeriod = DEFAULT_LOOP_PERIOD_SECONDS;
     /** How many loop() calls have run (not counting init_loop). */
     private int loopCount;
+    /** Scores the run (match points, D50) on this season's field. */
+    private final MatchScorer scorer;
+    /** The robot's alliance for scoring, or null. */
+    private final Alliance alliance;
+    /** The final score, worked out once after STOP (with the pieces settled); null until then. */
+    private MatchScore finalScore;
     /** How far through the lifecycle we are; null before INIT. */
     private RunResult.Stage stage;
     /** Callbacks run after every OpMode call; see {@link #everyLoop}. */
@@ -117,41 +131,38 @@ public class OpModeRunner {
         WheelReader wheels = WheelReader.fromConfig(settings);
         java.util.List<String> missing = wheels.missingMotors(hardwareMap);
         if (missing.isEmpty()) {
-            Pose startPose = Pose.ORIGIN;
-            String sysPose = System.getProperty("sim.startPose");
-            if (sysPose == null || sysPose.isBlank()) {
-                sysPose = System.getenv("SIM_START_POSE");
-            }
-            if (sysPose != null && !sysPose.isBlank()) {
-                String[] parts = sysPose.split(",");
-                if (parts.length >= 3) {
-                    try {
-                        double x = Double.parseDouble(parts[0].trim());
-                        double y = Double.parseDouble(parts[1].trim());
-                        double h = Math.toRadians(Double.parseDouble(parts[2].trim()));
-                        startPose = Pose.inches(x, y, h);
-                    } catch (Exception ignored) {}
-                }
-            }
-            positionEstimator = new PoseEstimator(DriveModels.fromConfig(settings), wheels, startPose);
+            // Where the robot profile says this OpMode starts (start.<name>), or the field's center.
+            Pose start = settings.startFor(driverStationName(opMode), opMode.getClass().getSimpleName());
+            positionEstimator = new PoseEstimator(DriveModels.fromConfig(settings), wheels, start == null ? Pose.ORIGIN : start)
+                    .useMechanism(settings.mechanism());
         } else {
             untrackedReason = "the fake robot has no drive motor(s) " + missing;
         }
+        // Match points: this season's field (nothing to score without a field file) and the robot's alliance.
+        scorer = new MatchScorer(scoringField(settings.field()));
+        alliance = settings.allianceFor(driverStationName(opMode), opMode.getClass().getSimpleName());
         // So the final position can be printed when the test finishes.
         RunnerRegistry.register(this);
     }
 
-    // ---- Setup ----------------------------------------------------------------
-
-    /** Sets an explicit starting position and heading for this run. Returns this runner for chaining. */
-    public OpModeRunner startAt(Pose startPose) {
-        if (startPose != null && positionEstimator != null) {
-            HarnessConfig settings = hardwareMap.settings();
-            WheelReader wheels = WheelReader.fromConfig(settings);
-            this.positionEstimator = new PoseEstimator(DriveModels.fromConfig(settings), wheels, startPose);
+    /** The scoring parts of a field file, or nothing to score if there is no such file. */
+    private static ScoringField scoringField(String fieldId) {
+        try {
+            return fieldId == null || fieldId.isBlank() ? ScoringField.none() : ScoringField.forField(fieldId);
+        } catch (IllegalArgumentException noFile) {
+            return ScoringField.none();
         }
-        return this;
     }
+
+    /** The name the Driver Station shows, from {@code @Autonomous} or {@code @TeleOp}; null if it has neither or no name. */
+    private static String driverStationName(OpMode opMode) {
+        Autonomous auto = opMode.getClass().getAnnotation(Autonomous.class);
+        TeleOp teleOp = opMode.getClass().getAnnotation(TeleOp.class);
+        String name = auto != null ? auto.name() : teleOp != null ? teleOp.name() : null;
+        return name == null || name.isEmpty() ? null : name;
+    }
+
+    // ---- Setup ----------------------------------------------------------------
 
     /** Gives gamepad 1 (the driver) a script to follow. Returns this runner for chaining. */
     public OpModeRunner gamepad1(GamepadScript script) {
@@ -312,7 +323,77 @@ public class OpModeRunner {
         // Time spent before PLAY: all of it if PLAY never happened.
         double initSeconds = clock.hasStarted() ? clock.sinceInit() - clock.sinceStart() : clock.sinceInit();
         return new RunResult(failure, failedStage, initSeconds, clock.sinceStart(), loopCount,
-                isStopRequested(), telemetry, driver1.rumbles(), driver2.rumbles());
+                isStopRequested(), telemetry, driver1.rumbles(), driver2.rumbles(), finalScore());
+    }
+
+    // ---- Match points (manager decision D50) ----
+
+    /** How long the pieces may take to come to rest after STOP before the final score is taken, in seconds. */
+    public static final double SETTLE_LIMIT_SECONDS = 5.0;
+
+    /** The period this run scores: AUTONOMOUS for an {@code @Autonomous} OpMode, else TELEOP. */
+    public MatchPeriod scoringPeriod() {
+        return RunRecorder.periodOf(opMode.getClass()) == MatchPeriod.AUTONOMOUS ? MatchPeriod.AUTONOMOUS : MatchPeriod.TELEOP;
+    }
+
+    /** The robot's alliance for scoring (profile key {@code alliance.<OpMode>}, else its name), or null. */
+    public Alliance alliance() {
+        return alliance;
+    }
+
+    /** The score as it stands now: tips so far, and the robot and balls where they are (not settled). */
+    public MatchScore score() {
+        if (positionEstimator == null) {
+            return MatchScore.none(scoringPeriod());
+        }
+        return scoreOf(positionEstimator.pieces(), false);
+    }
+
+    /**
+     * The final score: after STOP, a copy of the pieces moves on with the robot standing still and its motors off
+     * until they come to rest, for up to {@link #SETTLE_LIMIT_SECONDS}; then the score is taken. The run's own pieces
+     * don't change. Before STOP (or after a crash, which skips STOP) it's the score as it stands.
+     */
+    public MatchScore finalScore() {
+        if (stage != RunResult.Stage.STOP) {
+            return score();
+        }
+        if (finalScore == null) {
+            if (positionEstimator == null) {
+                finalScore = MatchScore.none(scoringPeriod());
+            } else {
+                PoseEstimator estimator = positionEstimator;
+                GamePieces settled = estimator.pieces().settledCopy(estimator.pose(), estimator.model().lengthInches(),
+                        estimator.model().widthInches(), estimator.hasWalls(), loopPeriod, SETTLE_LIMIT_SECONDS);
+                finalScore = scoreOf(settled, true);
+            }
+        }
+        return finalScore;
+    }
+
+    /**
+     * For outside physics (Unity Live, manager decision D50 option B): after STOP, Unity keeps moving its balls with
+     * the robot frozen and supplies them, and decides when they're still. Then this scores the run's own pieces as they
+     * are now, with Unity's {@code settled} and {@code settleSeconds}, and keeps that as the final score, so
+     * {@link #finalScore()}, the run result and the recording use it.
+     *
+     * @param settled       true if every ball came to rest, false if the 5 s limit ran out first
+     * @param settleSeconds how long Unity moved the balls on after STOP
+     */
+    public MatchScore finalScoreFromOutside(boolean settled, double settleSeconds) {
+        if (stage != RunResult.Stage.STOP) {
+            throw new IllegalStateException("The final score is taken after STOP.");
+        }
+        finalScore = positionEstimator == null ? MatchScore.none(scoringPeriod()).withSettle(settled, settleSeconds)
+                : scoreOf(positionEstimator.pieces(), true).withSettle(settled, settleSeconds);
+        return finalScore;
+    }
+
+    private MatchScore scoreOf(GamePieces pieces, boolean afterStop) {
+        PoseEstimator estimator = positionEstimator;
+        return scorer.score(new ScoreInput(scoringPeriod(), alliance, estimator.pose(), estimator.model().lengthInches(),
+                estimator.model().widthInches(), pieces.snapshot(), pieces.hiveTilts(), afterStop && pieces.atRest(),
+                afterStop ? pieces.settleSeconds() : 0));
     }
 
     // ---- Accessors ----------------------------------------------------------------------
@@ -357,7 +438,7 @@ public class OpModeRunner {
         if (stage != null) {
             throw new IllegalStateException("Set the position estimator before init(), so it sees the whole run.");
         }
-        this.positionEstimator = estimator;
+        this.positionEstimator = estimator.useMechanism(hardwareMap.settings().mechanism());
         this.untrackedReason = null;
         return this;
     }

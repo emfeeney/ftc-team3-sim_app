@@ -6,6 +6,7 @@ import java.nio.file.Path;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import pvi.harness.runtime.HarnessConfig;
 import pvi.harness.runtime.MatchPeriod;
@@ -56,9 +57,13 @@ class RobotConfigsTest {
      * <p>WHY: Another team's robot code looks up its sensors by name; without them it can't start.</p>
      */
     @Test
-    void theDeviceListsAddTheirDevices() throws IOException {
-        String text = withDevices(Files.readString(Path.of(HarnessConfig.FILE_NAME)));
-        FakeHardwareMap robot = RobotConfigs.robot(HarnessConfig.fromText(text, "devices"));
+    void theDeviceListsAddTheirDevices(@TempDir Path robotsFolder) throws IOException {
+        String text = withDevices(Files.readString(Path.of(HarnessConfig.FILE_NAME)))
+                .replaceAll("(?m)^robot\\.id=.*$", "robot.id=devices-test");
+        Files.createDirectories(robotsFolder.resolve("devices-test"));
+        Files.writeString(robotsFolder.resolve("devices-test").resolve(HarnessConfig.CAMERA_FILE_NAME),
+                "devices.webcams=camera\n" + cameraKeys("camera"));
+        FakeHardwareMap robot = RobotConfigs.robot(HarnessConfig.fromText(text, "devices", robotsFolder));
         java.util.Set<String> names = robot.deviceNames();
         for (String name : new String[] {"imu", "frontDistance", "rearDistance", "button", "intakeColor", "spinner",
                 "pot", "otos", "limelight", "camera", "leftOdo", "claw", "wrist"}) {
@@ -91,18 +96,16 @@ class RobotConfigsTest {
      */
     private static String withDevices(String settingsText) {
         return settingsText.replace("\r\n", "\n")
-                .replaceAll("(?m)^devices\\.imu=.*$", "devices.imu=imu")
+                .replace("devices.imu=\n", "devices.imu=imu\n")
                 .replaceAll("(?m)^hardware\\.servos=.*$", "hardware.servos=claw, wrist")
-                .replaceAll("(?m)^devices\\.distanceSensors=.*$", "devices.distanceSensors=frontDistance, rearDistance")
-                .replaceAll("(?m)^devices\\.touchSensors=.*$", "devices.touchSensors=button")
-                .replaceAll("(?m)^devices\\.colorSensors=.*$", "devices.colorSensors=intakeColor")
-                .replaceAll("(?m)^devices\\.crServos=.*$", "devices.crServos=spinner")
-                .replaceAll("(?m)^devices\\.analogInputs=.*$", "devices.analogInputs=pot")
-                .replaceAll("(?m)^devices\\.otos=.*$", "devices.otos=otos")
-                .replaceAll("(?m)^devices\\.limelights=.*$", "devices.limelights=limelight")
-                .replaceAll("(?m)^webcam\\..*\n", "")
-                .replaceAll("(?m)^devices\\.webcams=.*$", "devices.webcams=camera\n" + cameraKeys("camera"))
-                .replaceAll("(?m)^devices\\.deadWheels=.*$", "devices.deadWheels=leftOdo:parallel:7.0");
+                .replace("devices.distanceSensors=\n", "devices.distanceSensors=frontDistance, rearDistance\n")
+                .replace("devices.touchSensors=\n", "devices.touchSensors=button\n")
+                .replace("devices.colorSensors=\n", "devices.colorSensors=intakeColor\n")
+                .replace("devices.crServos=\n", "devices.crServos=spinner\n")
+                .replace("devices.analogInputs=\n", "devices.analogInputs=pot\n")
+                .replace("devices.otos=\n", "devices.otos=otos\n")
+                .replace("devices.limelights=\n", "devices.limelights=limelight\n")
+                .replace("devices.deadWheels=\n", "devices.deadWheels=leftOdo:parallel:7.0\n");
     }
 
     /** A webcam's {@code webcam.<name>.<fact>} lines: 5 in forward, 10 in up, a plain 640 x 480 view. */

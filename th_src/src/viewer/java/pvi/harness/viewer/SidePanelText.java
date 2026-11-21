@@ -52,6 +52,15 @@ public final class SidePanelText {
             }
         }
 
+        List<HiveView.Cell> cells = view.cells(index);
+        if (!cells.isEmpty()) {
+            lines.add("");
+            lines.add("HIVE CELLs");
+            for (String line : HiveView.lines(view.hives(index), cells)) {
+                lines.add("  " + line);
+            }
+        }
+
         lines.add("");
         addDriverStation(lines, view, index);
 

@@ -21,13 +21,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Manager decision D11: the viewer's scenarios. PVI keeps its hand-made ones; any other repo gets
- * one per OpMode from the robot code, so the viewer never has to name a team's OpModes.
+ * Manager decision D11: the viewer's scenarios. PVI keeps its hand-made ones;
+ * any other repo gets
+ * one per OpMode from the robot code, so the viewer never has to name a team's
+ * OpModes.
  */
 class ScenariosTest {
 
     /**
-     * WHAT: With the PVI extras built, the dropdown starts with PVI's hand-made five, in the same
+     * WHAT: With the PVI extras built, the dropdown starts with PVI's hand-made
+     * five, in the same
      * order as before D11.
      */
     @Test
@@ -40,11 +43,16 @@ class ScenariosTest {
     }
 
     /**
-     * WHAT: After them, PVI's dropdown offers every other autonomous in TeamCode (e.g. "Team A
-     * Pedro Paths") as its generic 30 s run, once each; the one the hand-made scenario covers
+     * WHAT: After them, PVI's dropdown offers every other autonomous in TeamCode
+     * (e.g. "Team A
+     * Pedro Paths") as its generic 30 s run, once each; the one the hand-made
+     * scenario covers
      * (TeamAAutoOpMode) isn't offered twice, and no TeleOp is added.
      *
-     * <p>WHY: W21: "Team A Pedro Paths" was never offered, so a new autonomous must show up by itself.</p>
+     * <p>
+     * WHY: W21: "Team A Pedro Paths" was never offered, so a new autonomous must
+     * show up by itself.
+     * </p>
      */
     @Test
     void pviAlsoOffersEveryOtherAutonomous() {
@@ -61,8 +69,10 @@ class ScenariosTest {
     }
 
     /**
-     * WHAT: The generic scenarios list every OpMode once (an autonomous runs 30 s, a TeleOp stands
-     * still), leave out smokeTest.skipOpModes, and have unique ids. Works on any team's code.
+     * WHAT: The generic scenarios list every OpMode once (an autonomous runs 30 s,
+     * a TeleOp stands
+     * still), leave out smokeTest.skipOpModes, and have unique ids. Works on any
+     * team's code.
      */
     @Test
     void genericScenariosComeFromTheRobotCode() {
@@ -81,26 +91,37 @@ class ScenariosTest {
         assertEquals(ids.size(), unique.size(), "ids must be unique: " + ids);
     }
 
-    /** WHAT: An OpMode on smokeTest.skipOpModes has no scenario; the others keep theirs. */
+    /**
+     * WHAT: An OpMode on smokeTest.skipOpModes has no scenario; the others keep
+     * theirs.
+     */
     @Test
     void anOpModeOnTheSkipListHasNoScenario() throws IOException {
         HarnessConfig config = HarnessConfig.load();
-        List<OpModeCatalog.Entry> catalog = OpModeCatalog.fromConfig(config);
-        Assumptions.assumeFalse(catalog.isEmpty(), "this repo has no OpModes");
-        OpModeCatalog.Entry skipped = catalog.get(0);
+        List<Scenarios.Scenario> all = Scenarios.fromCatalog(config);
+        Assumptions.assumeFalse(all.isEmpty(), "this repo has no OpModes");
+        OpModeCatalog.Entry skipped = OpModeCatalog.fromConfig(config).stream()
+                .filter(e -> !config.smokeTestSkipOpModes().contains(e.name()))
+                .findFirst().orElseThrow();
+        List<String> combined = new java.util.ArrayList<>(config.smokeTestSkipOpModes());
+        combined.add(skipped.name());
         String text = Files.readString(Path.of(HarnessConfig.FILE_NAME)).replace("\r\n", "\n").replaceAll(
-                "(?m)^smokeTest\\.skipOpModes=.*$", Matcher.quoteReplacement("smokeTest.skipOpModes=" + skipped.name()));
+                "(?m)^smokeTest\\.skipOpModes=.*$",
+                Matcher.quoteReplacement("smokeTest.skipOpModes=" + String.join(", ", combined)));
 
         List<String> ids = Scenarios.fromCatalog(HarnessConfig.fromText(text, "test settings")).stream()
                 .map(Scenarios.Scenario::id).toList();
 
-        assertEquals(catalog.size() - 1, ids.size(), ids.toString());
-        assertFalse(ids.stream().anyMatch(id -> id.startsWith(skipped.simpleName() + "-")), skipped.name() + ": " + ids);
+        assertEquals(all.size() - 1, ids.size(), ids.toString());
+        assertFalse(ids.stream().anyMatch(id -> id.startsWith(skipped.simpleName() + "-")),
+                skipped.name() + ": " + ids);
     }
 
     /**
-     * WHAT: On PVI, KimCode's TeleOp has a scenario next to Team A's, and each runs on its own
-     * robot. It used to be left out, because every OpMode ran on Team A's robot and it crashed.
+     * WHAT: On PVI, KimCode's TeleOp has a scenario next to Team A's, and each runs
+     * on its own
+     * robot. It used to be left out, because every OpMode ran on Team A's robot and
+     * it crashed.
      */
     @Test
     void pviOffersKimCodesTeleOpOnItsOwnRobot() {
@@ -118,7 +139,8 @@ class ScenariosTest {
     }
 
     /**
-     * WHAT: A generic TeleOp scenario really runs the OpMode: INIT, PLAY, a few seconds standing
+     * WHAT: A generic TeleOp scenario really runs the OpMode: INIT, PLAY, a few
+     * seconds standing
      * still, no crash.
      */
     @Test

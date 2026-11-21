@@ -13,6 +13,7 @@ import java.util.Locale;
 
 import pvi.harness.physics.GamePiece;
 import pvi.harness.physics.Pose;
+import pvi.harness.runtime.PlannedPath;
 import pvi.harness.runtime.RunRecording;
 
 /**
@@ -32,6 +33,8 @@ public final class FieldPainter {
     static final Color TILE_LINE = new Color(0x1D, 0x24, 0x2C);
     static final Color BORDER = new Color(0x3A, 0x44, 0x4F);
     static final Color TRAIL = Theme.ACCENT;
+    /** A Pedro robot's planned path (D39): yellow in the viewer and VI Arena alike. */
+    static final Color PLANNED_PATH = new Color(0xFF, 0xD6, 0x00);
     static final Color ROBOT_FILL = new Color(0x0E, 0x1F, 0x2E);
     static final Color ROBOT_OUTLINE = new Color(0xA9, 0xBC, 0xCC);
     static final Color ROBOT_FRONT = Theme.ACCENT;
@@ -139,26 +142,121 @@ public final class FieldPainter {
 
     /**
      * Like {@link #paint(Graphics2D, FieldCoordinates, RobotBox, Pose, List, String, RobotParts, String)},
-     * also drawing the game pieces: loose balls on the tiles as filled circles under the robot,
-     * balls up in a FLOWER or CELL as rings over it. Pieces outside the field (in an ALLIANCE AREA)
-     * aren't drawn.
+     * also drawing the game pieces (see {@link #layer(GamePiece)}). Pieces outside the field (in an
+     * ALLIANCE AREA) aren't drawn.
      */
     public static void paint(Graphics2D g, FieldCoordinates coords, RobotBox box, Pose pose,
                              List<Pose> trail, String caption, RobotParts parts, String flashWall,
                              List<GamePiece> pieces) {
+        paint(g, coords, box, pose, trail, caption, parts, flashWall, pieces, List.of());
+    }
+
+    /**
+     * Like {@link #paint(Graphics2D, FieldCoordinates, RobotBox, Pose, List, String, RobotParts, String, List)},
+     * also drawing each HIVE's two CELLs seen from above ({@code cells}, from {@link HiveView#cells}): the
+     * upward CELL tinted in its alliance's color, the lowered one as a dashed outline, and both as amber
+     * dashed outlines while the HIVE tips.
+     */
+    public static void paint(Graphics2D g, FieldCoordinates coords, RobotBox box, Pose pose,
+                             List<Pose> trail, String caption, RobotParts parts, String flashWall,
+                             List<GamePiece> pieces, List<HiveView.Cell> cells) {
+        paint(g, coords, box, pose, trail, caption, parts, flashWall, pieces, cells, List.of());
+    }
+
+    /**
+     * Like {@link #paint(Graphics2D, FieldCoordinates, RobotBox, Pose, List, String, RobotParts, String, List, List)},
+     * also drawing a Pedro robot's planned path as a yellow line ({@code plannedLine}, from
+     * {@link RecordingView#plannedLine}; empty for none), over the trail and under the robot.
+     */
+    public static void paint(Graphics2D g, FieldCoordinates coords, RobotBox box, Pose pose,
+                             List<Pose> trail, String caption, RobotParts parts, String flashWall,
+                             List<GamePiece> pieces, List<HiveView.Cell> cells, List<PlannedPath.Point> plannedLine) {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         paintField(g, coords);
         paintTrail(g, coords, trail);
+        paintPlannedPath(g, coords, plannedLine);
         if (flashWall != null) {
             paintWallFlash(g, coords, flashWall);
         }
-        paintPieces(g, coords, pieces, true);
+        paintCells(g, coords, cells);
+        paintPieces(g, coords, pieces, LAYER_TILES);
         if (pose != null) {
             paintRobot(g, coords, box, pose, parts);
         }
-        paintPieces(g, coords, pieces, false);
+        paintPieces(g, coords, pieces, LAYER_HELD);
+        paintPieces(g, coords, pieces, LAYER_UP);
+        paintPieces(g, coords, pieces, LAYER_FLYING);
         paintText(g, coords, box, pose, caption);
+    }
+
+    /** Drawing layers, bottom to top: loose balls on the tiles go under the robot, the rest over it. */
+    static final int LAYER_TILES = 0;
+    /** Balls the robot holds: filled, over the robot. */
+    static final int LAYER_HELD = 1;
+    /** Balls up in a FLOWER or CELL (or an ALLIANCE AREA): rings, over the robot. */
+    static final int LAYER_UP = 2;
+    /** Balls in the air: on top of everything, bigger the higher they are, with a shadow on the tiles. */
+    static final int LAYER_FLYING = 3;
+    /** A flying ball is drawn at most this many times its size. */
+    static final double MOST_FLYING_GROWTH = 2.5;
+    /** A flying ball grows by its own size for every this many inches up. */
+    static final double FLYING_GROWTH_INCHES = 36;
+    /** The shadow under a flying ball. */
+    static final Color SHADOW = new Color(0, 0, 0, 150);
+    /** The outline round a flying ball. */
+    static final Color FLYING_OUTLINE = Theme.TEXT;
+
+    /** Which layer a piece is drawn in. */
+    static int layer(GamePiece p) {
+        return switch (p.state()) {
+            case GamePiece.FIELD -> LAYER_TILES;
+            case GamePiece.HELD -> LAYER_HELD;
+            case GamePiece.FLYING -> LAYER_FLYING;
+            default -> LAYER_UP;
+        };
+    }
+
+    /**
+     * How big a piece is drawn, in inches of radius: its real size, except that a flying ball looks
+     * bigger the higher it is (as if nearer a camera above), up to {@link #MOST_FLYING_GROWTH} times.
+     */
+    static double drawnRadiusInches(GamePiece p) {
+        if (!GamePiece.FLYING.equals(p.state())) {
+            return p.radiusInches();
+        }
+        double growth = 1 + Math.max(0, p.zInches()) / FLYING_GROWTH_INCHES;
+        return p.radiusInches() * Math.min(MOST_FLYING_GROWTH, growth);
+    }
+
+    /** The color a HIVE's CELLs are drawn in: its alliance's. */
+    static Color cellColor(String hiveId) {
+        return hiveId.startsWith("blue") ? BLUE_NECTAR : RED_NECTAR;
+    }
+
+    /** Each CELL seen from above, under the balls and the robot. */
+    private static void paintCells(Graphics2D g, FieldCoordinates c, List<HiveView.Cell> cells) {
+        if (cells == null) {
+            return;
+        }
+        float width = (float) Math.max(1.0, 0.25 * c.pixelsPerInch());
+        float dash = (float) Math.max(3.0, 1.0 * c.pixelsPerInch());
+        for (HiveView.Cell cell : cells) {
+            Rectangle2D.Double box = new Rectangle2D.Double(c.screenX(cell.minX()), c.screenY(cell.maxY()),
+                    (cell.maxX() - cell.minX()) * c.pixelsPerInch(), (cell.maxY() - cell.minY()) * c.pixelsPerInch());
+            Color color = cell.tipping() ? Theme.AMBER : cellColor(cell.hiveId());
+            if (cell.up()) {
+                g.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 90));
+                g.fill(box);
+                g.setColor(color);
+                g.setStroke(new BasicStroke(width));
+            } else {
+                g.setColor(color);
+                g.setStroke(new BasicStroke(width, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f,
+                        new float[] {dash, dash}, 0f));
+            }
+            g.draw(box);
+        }
     }
 
     /** The color a game piece is drawn in. */
@@ -171,27 +269,32 @@ public final class FieldPainter {
     }
 
     /**
-     * The game pieces on the field: {@code onTiles} true draws the loose ones (filled, to go under
-     * the robot), false the ones up in a FLOWER or CELL (rings, drawn over the robot).
+     * The game pieces in one {@code layer}: loose and held balls filled, balls up in a FLOWER or CELL as
+     * rings, and flying balls filled, outlined, bigger by height, over a shadow where they are.
      */
-    private static void paintPieces(Graphics2D g, FieldCoordinates c, List<GamePiece> pieces, boolean onTiles) {
+    private static void paintPieces(Graphics2D g, FieldCoordinates c, List<GamePiece> pieces, int layer) {
         if (pieces == null) {
             return;
         }
         double half = Pose.FIELD_HALF_WIDTH_INCHES;
         g.setStroke(new BasicStroke((float) Math.max(1.0, 0.25 * c.pixelsPerInch())));
         for (GamePiece p : pieces) {
-            boolean loose = GamePiece.FIELD.equals(p.state()) || GamePiece.HELD.equals(p.state());
-            if (loose != onTiles || Math.abs(p.xInches()) > half || Math.abs(p.yInches()) > half) {
+            if (layer(p) != layer || Math.abs(p.xInches()) > half || Math.abs(p.yInches()) > half) {
                 continue;
             }
-            double r = p.radiusInches() * c.pixelsPerInch();
-            Ellipse2D.Double ball = new Ellipse2D.Double(c.screenX(p.xInches()) - r, c.screenY(p.yInches()) - r,
-                    2 * r, 2 * r);
+            double x = c.screenX(p.xInches());
+            double y = c.screenY(p.yInches());
+            if (layer == LAYER_FLYING) {
+                double shadow = p.radiusInches() * c.pixelsPerInch();
+                g.setColor(SHADOW);
+                g.fill(new Ellipse2D.Double(x - shadow, y - shadow, 2 * shadow, 2 * shadow));
+            }
+            double r = drawnRadiusInches(p) * c.pixelsPerInch();
+            Ellipse2D.Double ball = new Ellipse2D.Double(x - r, y - r, 2 * r, 2 * r);
             g.setColor(pieceColor(p.kind()));
-            if (loose) {
+            if (layer != LAYER_UP) {
                 g.fill(ball);
-                g.setColor(BACKGROUND);
+                g.setColor(layer == LAYER_FLYING ? FLYING_OUTLINE : BACKGROUND);
             }
             g.draw(ball);
         }
@@ -249,7 +352,7 @@ public final class FieldPainter {
         String size = String.format(Locale.ROOT, "Robot %.0f x %.0f in (%s)", box.lengthInches(), box.widthInches(),
                 box.modelName());
         String flag = box.measured() ? "measured size" : "PLACEHOLDER size, not measured";
-        return size + ", " + flag + ". Cyan = path, white = facing.";
+        return size + ", " + flag + ". Cyan = path, white = facing, dashed yellow = Pedro's planned path.";
     }
 
     // ---- The parts --------------------------------------------------------------------------
@@ -288,6 +391,23 @@ public final class FieldPainter {
             g.draw(new Line2D.Double(c.screenX(at), c.screenY(-half), c.screenX(at), c.screenY(half)));
             g.draw(new Line2D.Double(c.screenX(-half), c.screenY(at), c.screenX(half), c.screenY(at)));
         }
+    }
+
+    /** The planned path: a dashed yellow line, so it can't be mistaken for the trail or a POLLEN ball. */
+    private static void paintPlannedPath(Graphics2D g, FieldCoordinates c, List<PlannedPath.Point> line) {
+        if (line == null || line.size() < 2) {
+            return;
+        }
+        Path2D.Double path = new Path2D.Double();
+        path.moveTo(c.screenX(line.get(0).xInches()), c.screenY(line.get(0).yInches()));
+        for (PlannedPath.Point p : line.subList(1, line.size())) {
+            path.lineTo(c.screenX(p.xInches()), c.screenY(p.yInches()));
+        }
+        float width = (float) Math.max(2.0, 0.3 * c.pixelsPerInch());
+        g.setColor(PLANNED_PATH);
+        g.setStroke(new BasicStroke(width, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 10f,
+                new float[] {3 * width, 2 * width}, 0f));
+        g.draw(path);
     }
 
     /** A line through every pose the robot has been at. */

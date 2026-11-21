@@ -19,9 +19,13 @@ import java.util.List;
  * @param robotBounce         the same, for the robot hitting a ball
  * @param pollenMass          a POLLEN ball's mass (g)
  * @param nectarMass          a NECTAR ball's mass (g)
+ * @param dragCoefficient     how much the air holds back a flying ball, its drag coefficient (no unit): the drag
+ *                            force is half the air's density, times this, times the ball's cross-section, times
+ *                            its speed squared
  */
 public record PieceModel(ModelValue rollingDeceleration, ModelValue wallBounce, ModelValue pieceBounce,
-                         ModelValue robotBounce, ModelValue pollenMass, ModelValue nectarMass) {
+                         ModelValue robotBounce, ModelValue pollenMass, ModelValue nectarMass,
+                         ModelValue dragCoefficient) {
 
     /** Unit label for a bounce: a share of the speed, 0 to 1. */
     public static final String RATIO = "ratio";
@@ -30,11 +34,20 @@ public record PieceModel(ModelValue rollingDeceleration, ModelValue wallBounce, 
 
     /** Below this speed (in/s) a ball stops (rolling resistance holds it). */
     public static final double STOP_INCHES_PER_SECOND = 0.05;
+    /** How fast a falling ball speeds up: standard gravity, 9.80665 m/s². */
+    public static final double GRAVITY_INCHES_PER_SECOND_SQUARED = 386.09;
+    /**
+     * How heavy air is, in grams per cubic inch: the standard 1.204 kg/m³ of dry air at 20 °C at sea level. A hall
+     * high up, or hot, has thinner air; the harness doesn't model that.
+     */
+    public static final double AIR_DENSITY_GRAMS_PER_CUBIC_INCH = 1204.0 / 61023.74;
+    /** Unit label for a number with no unit, such as a drag coefficient. */
+    public static final String NO_UNIT = "no unit";
 
     /** Refuses missing values, bounces outside 0 to 1, and masses or friction that aren't positive. */
     public PieceModel {
         for (ModelValue v : new ModelValue[] {rollingDeceleration, wallBounce, pieceBounce, robotBounce,
-                pollenMass, nectarMass}) {
+                pollenMass, nectarMass, dragCoefficient}) {
             if (v == null) {
                 throw new IllegalArgumentException("A piece model needs every value.");
             }
@@ -46,6 +59,9 @@ public record PieceModel(ModelValue rollingDeceleration, ModelValue wallBounce, 
         }
         if (rollingDeceleration.value() < 0 || pollenMass.value() <= 0 || nectarMass.value() <= 0) {
             throw new IllegalArgumentException("Rolling deceleration can't be negative and masses must be positive.");
+        }
+        if (dragCoefficient.value() < 0) {
+            throw new IllegalArgumentException("A drag coefficient can't be negative, got " + dragCoefficient.value());
         }
     }
 
@@ -62,7 +78,19 @@ public record PieceModel(ModelValue rollingDeceleration, ModelValue wallBounce, 
                 ModelValue.placeholder(0.6, RATIO, NOT_IN_MANUAL + "not measured; a guess for two balls"),
                 ModelValue.placeholder(0.2, RATIO, NOT_IN_MANUAL + "not measured; a guess for the robot's bumper"),
                 ModelValue.measured(24.9, GRAMS, "AndyMark store page, am-5851 (POLLEN): 0.055 lb"),
-                ModelValue.measured(41.3, GRAMS, "AndyMark store page, am-5852 (NECTAR): 0.091 lb"));
+                ModelValue.measured(41.3, GRAMS, "AndyMark store page, am-5852 (NECTAR): 0.091 lb"),
+                ModelValue.placeholder(0.47, NO_UNIT, NOT_IN_MANUAL + "not measured; the textbook value for a smooth"
+                        + " sphere at a shot's speed (Reynolds number about 30,000). Film a shot and fit its path"));
+    }
+
+    /**
+     * How fast the air slows a flying ball of this kind, per (in/s)² of its speed, in 1/in: half the air's density,
+     * times {@link #dragCoefficient}, times the ball's cross-section, over its mass. The slowing down is this times
+     * the speed squared.
+     */
+    public double dragPerInch(String kind) {
+        double radius = GamePiece.radiusInches(kind);
+        return 0.5 * AIR_DENSITY_GRAMS_PER_CUBIC_INCH * dragCoefficient.value() * Math.PI * radius * radius / massOf(kind);
     }
 
     /** A ball's mass for its kind, in grams. */
@@ -74,8 +102,9 @@ public record PieceModel(ModelValue rollingDeceleration, ModelValue wallBounce, 
     public List<String> unmeasured() {
         List<String> names = new ArrayList<>();
         String[] labels = {"ball rolling deceleration", "ball wall bounce", "ball-to-ball bounce", "robot-to-ball bounce",
-                "pollen mass", "nectar mass"};
-        ModelValue[] values = {rollingDeceleration, wallBounce, pieceBounce, robotBounce, pollenMass, nectarMass};
+                "pollen mass", "nectar mass", "ball drag coefficient"};
+        ModelValue[] values = {rollingDeceleration, wallBounce, pieceBounce, robotBounce, pollenMass, nectarMass,
+                dragCoefficient};
         for (int i = 0; i < values.length; i++) {
             if (!values[i].measured()) {
                 names.add(labels[i]);

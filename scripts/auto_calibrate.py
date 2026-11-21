@@ -102,7 +102,7 @@ def generate_properties_file(data):
 # {data["display_name"].upper()} - AUTO-CALIBRATED ROBOT CONFIGURATION
 # Generated automatically from: {os.path.relpath(data["file"], REPO_ROOT)}
 # ==============================================================================
-config.version=5
+config.version=6
 
 teamCode.sourceDir=../TeamCode/src/main/java
 teamCode.opModePackages=org.firstinspires.ftc.teamcode
@@ -111,7 +111,7 @@ host.skipLibraries=org.firstinspires.ftc:Inspection,org.firstinspires.ftc:Blocks
   org.firstinspires.ftc:RobotServer,org.firstinspires.ftc:OnBotJava,androidx.appcompat:appcompat
 
 robot.name={data["display_name"]}
-robot.branch=feature/{team_id}-setup
+robot.id=team-a
 
 drive.frontLeft={data["fl_name"]}
 drive.frontRight={data["fr_name"]}
@@ -130,20 +130,6 @@ devices.colorSensors=
 devices.analogInputs=
 devices.otos=
 devices.limelights=
-devices.webcams=Webcam 1
-webcam.Webcam\\ 1.forwardInches=6.0 | placeholder | TeamCode Team3VisionConfiguration CAMERA_FORWARD_INCHES
-webcam.Webcam\\ 1.leftInches=0.0 | placeholder | TeamCode Team3VisionConfiguration CAMERA_RIGHT_INCHES
-webcam.Webcam\\ 1.upInches=12.0 | placeholder | TeamCode Team3VisionConfiguration CAMERA_UP_INCHES
-webcam.Webcam\\ 1.yawDegrees=0 | placeholder | TeamCode Team3VisionConfiguration mount angles 0, 0, 0
-webcam.Webcam\\ 1.pitchDegrees=0 | placeholder | TeamCode Team3VisionConfiguration mount angles 0, 0, 0
-webcam.Webcam\\ 1.rollDegrees=0 | placeholder | TeamCode Team3VisionConfiguration mount angles 0, 0, 0
-webcam.Webcam\\ 1.horizontalFovDegrees=65.9 | placeholder | not measured; Logitech 78 degree diagonal for the C920, split for a 4:3 picture
-webcam.Webcam\\ 1.verticalFovDegrees=51.8 | placeholder | not measured; Logitech 78 degree diagonal for the C920, split for a 4:3 picture
-webcam.Webcam\\ 1.imageWidthPixels=640 | measured | TeamCode Team3VisionConfiguration STREAM_WIDTH
-webcam.Webcam\\ 1.imageHeightPixels=480 | measured | TeamCode Team3VisionConfiguration STREAM_HEIGHT
-webcam.Webcam\\ 1.maxRangeInches=120 | placeholder | not measured; a guess (10 ft) for a field AprilTag at 640 x 480
-webcam.Webcam\\ 1.maxViewAngleDegrees=60 | placeholder | not measured; AprilTag detection gets unreliable past about 60 to 70 degrees
-webcam.Webcam\\ 1.aprilTags=field
 devices.blinkers=
 devices.deadWheels=
 
@@ -168,10 +154,10 @@ pvi.extras=false
 field=biobuzz-2026
 field.robotObstacles=true
 viewer.open=false
-viewer.defaultTeleOp=
+viewer.defaultTeleOp=Team 3 Mecanum Drive
 
 smokeTest.skipOpModes=KimCode TeleopV1
-smokeTest.notDrivingTeleOps=
+smokeTest.notDrivingTeleOps=Team 3 AprilTag Vision Test, Team 3 Pedro Diagnostic, Team A AprilTag Vision Test, Team A Camera Calibration Capture, Team A Pedro Diagnostic
 """
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(content)

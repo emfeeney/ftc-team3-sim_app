@@ -17,24 +17,36 @@ package pvi.harness.physics;
  * @param minYInches   box: the side nearest -y. Cylinder: center y.
  * @param maxYInches   box: the side nearest +y. Cylinder: unused (0).
  * @param bottomInches height of its lowest point above the tiles
+ * @param topInches    height of its highest point (a flying ball meets it only between the two); infinite
+ *                     for one that only rolling balls meet
  */
 public record PieceObstacle(String id, boolean cylinder, double minXInches, double maxXInches,
-                            double minYInches, double maxYInches, double bottomInches) {
+                            double minYInches, double maxYInches, double bottomInches, double topInches) {
 
-    /** An upright box, axis-aligned. */
+    /** An upright box, axis-aligned, that only rolling balls meet. */
     public static PieceObstacle box(String id, double minX, double maxX, double minY, double maxY, double bottom) {
-        if (!(minX < maxX) || !(minY < maxY)) {
-            throw new IllegalArgumentException("Obstacle " + id + ": a box needs min below max on both axes.");
-        }
-        return new PieceObstacle(id, false, minX, maxX, minY, maxY, bottom);
+        return box(id, minX, maxX, minY, maxY, bottom, Double.POSITIVE_INFINITY);
     }
 
-    /** An upright cylinder. */
-    public static PieceObstacle cylinder(String id, double x, double y, double radius, double bottom) {
-        if (!(radius > 0)) {
-            throw new IllegalArgumentException("Obstacle " + id + ": a cylinder needs a radius above zero.");
+    /** An upright box, axis-aligned, from {@code bottom} up to {@code top}. */
+    public static PieceObstacle box(String id, double minX, double maxX, double minY, double maxY, double bottom, double top) {
+        if (!(minX < maxX) || !(minY < maxY) || !(bottom < top)) {
+            throw new IllegalArgumentException("Obstacle " + id + ": a box needs min below max on all three axes.");
         }
-        return new PieceObstacle(id, true, x, radius, y, 0, bottom);
+        return new PieceObstacle(id, false, minX, maxX, minY, maxY, bottom, top);
+    }
+
+    /** An upright cylinder that only rolling balls meet. */
+    public static PieceObstacle cylinder(String id, double x, double y, double radius, double bottom) {
+        return cylinder(id, x, y, radius, bottom, Double.POSITIVE_INFINITY);
+    }
+
+    /** An upright cylinder, from {@code bottom} up to {@code top}. */
+    public static PieceObstacle cylinder(String id, double x, double y, double radius, double bottom, double top) {
+        if (!(radius > 0) || !(bottom < top)) {
+            throw new IllegalArgumentException("Obstacle " + id + ": a cylinder needs a radius above zero and its bottom below its top.");
+        }
+        return new PieceObstacle(id, true, x, radius, y, 0, bottom, top);
     }
 
     /** True if a ball of this radius, sitting on the tiles, reaches this obstacle. */

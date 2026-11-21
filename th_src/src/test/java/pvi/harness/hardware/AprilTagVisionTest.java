@@ -145,7 +145,7 @@ class AprilTagVisionTest {
      */
     @Test
     void withoutTheWebcamVisionIsUnavailableAndDisabled() {
-        // The config robot has Team A's webcam (devices.webcams), so take it off for this test.
+        // The config robot has Team A's webcam (its camera file), so take it off for this test.
         OpModeRunner runner = new OpModeRunner(new TeamAAprilTagVisionTestOpMode(),
                 RobotConfigs.teamA().without(WEBCAM));
         runner.init().start();
@@ -236,10 +236,8 @@ class AprilTagVisionTest {
 
         assertEquals("21", runner.telemetry().lastValue("Tag ID"));
         assertEquals("false", runner.telemetry().lastValue("Pose Available"));
-        String quality = runner.telemetry().lastValue("Quality");
-        assertTrue(quality.contains("only DECODE tag 22 is verified")
-                        || quality.contains("only DECODE tags 20, 22, and 24 are verified"),
-                quality);
+        assertTrue(runner.telemetry().lastValue("Quality").contains("only DECODE tag 22 is verified"),
+                runner.telemetry().lastValue("Quality"));
     }
 
     /**

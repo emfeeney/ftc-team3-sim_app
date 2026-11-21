@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 
 import pvi.harness.hardware.FakeHardwareMap;
+import pvi.harness.hardware.MechanismSetup;
 import pvi.harness.runtime.HarnessConfig;
 import pvi.harness.physics.MecanumKinematics.RobotVelocity;
 import pvi.harness.runtime.OpModeRunner;
@@ -102,6 +103,10 @@ public final class PoseEstimator {
     private final List<ObstacleHit> obstacleHits = new ArrayList<>();
     /** The game pieces the robot can push (BIOBUZZ's by default). */
     private GamePieces pieces;
+    /** The robot's intake and hold, or null for a robot with neither. */
+    private MechanismSetup mechanism;
+    /** Reads the intake motor; null when {@link #mechanism} is. */
+    private MechanismReader mechanismReader;
 
     /**
      * An estimate using the harness's own physics ({@link MomentumPhysics}). With
@@ -139,7 +144,7 @@ public final class PoseEstimator {
         this.start = start;
         this.physics = physics;
         this.pieces = new GamePieces(BioBuzzPieces.start(start, model.lengthInches()), PieceModel.bioBuzz(),
-                BioBuzzObstacles.all());
+                BioBuzzObstacles.all(), BioBuzzPieces.flowers(), BioBuzzHive.hives(), BioBuzzHive.frame());
     }
 
     /**
@@ -151,6 +156,22 @@ public final class PoseEstimator {
             throw new IllegalArgumentException("Use GamePieces.none() for a field without game pieces.");
         }
         this.pieces = newPieces;
+        if (mechanism != null) {
+            pieces.useMechanism(mechanism, start);
+        }
+        return this;
+    }
+
+    /**
+     * Gives the robot its intake and hold ({@code robots/<id>/mechanism.properties}); null means it has
+     * none. The runner calls this with its robot's. Call it before the run starts. Returns this estimator.
+     */
+    public PoseEstimator useMechanism(MechanismSetup setup) {
+        if (setup != null && mechanism == null) {
+            mechanism = setup;
+            mechanismReader = new MechanismReader(setup);
+            pieces.useMechanism(setup, start);
+        }
         return this;
     }
 
@@ -247,6 +268,11 @@ public final class PoseEstimator {
         lastTimeSeconds = timeSeconds;
         // The robot pushes any loose game pieces in its way.
         pieces.step(before, now.pose(), model.lengthInches(), model.widthInches(), dt, hasWalls());
+        // Each ball launched slows the launcher wheel.
+        int shots = pieces.takeShots();
+        if (shots > 0 && hardwareMap != null && mechanismReader != null) {
+            mechanismReader.slowLauncher(hardwareMap, shots);
+        }
 
         // A new wall contact (not just staying against the same wall) is a hit.
         String contactBefore = wallContact;
@@ -295,6 +321,11 @@ public final class PoseEstimator {
                     pushes.rearLeft() * scale, pushes.rearRight() * scale);
         }
         lastCommand = new PhysicsBackend.DriveCommand(pushes, wheels.isBraking(hardwareMap));
+        if (mechanismReader != null) {
+            pieces.intakePower(mechanismReader.inwardIntakePower(hardwareMap));
+            pieces.feedPower(mechanismReader.inwardFeedPower(hardwareMap));
+            pieces.launcherBallSpeed(mechanismReader.launcherBallSpeed(hardwareMap));
+        }
         lastTimeSeconds = timeSeconds;
         track.add(new TrackPoint(timeSeconds, matchTimeSeconds, pose()));
     }

@@ -1,7 +1,7 @@
 /**
- * FTC Custom Robot Start Pose & Live Simulation Controller
+ * FTC Custom Robot Start Pose Controller
  * Provides interactive 2D field canvas placement, heading angle controls,
- * and instant cloud re-simulation (~1s) via Hugging Face Spaces / local Docker backend.
+ * and instant in-browser trajectory replay.
  */
 (function () {
   let modal = null;
@@ -41,7 +41,7 @@
       <div class="spp-dialog" role="dialog" aria-label="Start Pose Picker">
         <div class="spp-header">
           <div class="spp-title-group">
-            <span class="spp-title">🎯 Set Robot Start Pose & Live Simulate</span>
+            <span class="spp-title">🎯 Set Robot Start Pose</span>
             <span id="spp-robot-badge" class="spp-badge">Team 3 (18"×18")</span>
           </div>
           <button class="spp-close-btn" onclick="closeStartPoseModal()" title="Close (Esc)">✕</button>
@@ -126,35 +126,24 @@
               </select>
             </div>
 
-            <!-- Simulation Engine Endpoint -->
+            <!-- Default Pose Reset -->
             <div class="spp-card">
               <div class="spp-card-title">
-                <span>Simulation Backend (HF Spaces)</span>
-                <span id="spp-api-badge" class="spp-status-badge spp-status-checking">Checking...</span>
+                <span>Start Pose Mode</span>
+                <span class="spp-status-badge spp-status-online">⚡ Instant (In-Browser)</span>
               </div>
-              <div class="spp-endpoint-row">
-                <input type="url" id="spp-server-url" class="spp-endpoint-input" placeholder="https://<username>-ftc-sim-api.hf.space" value="${serverUrl}">
-                <button class="spp-ping-btn" onclick="checkServerHealth(true)">Ping</button>
+              <div style="font-size: 11.5px; color: #8b949e; line-height: 1.45; margin-bottom: 8px;">
+                Defaults automatically to the Pedro / OpMode start pose from the selected run. Drag on the field to test from anywhere.
               </div>
-              <div id="spp-error-msg" style="display: none; font-size: 11.5px; color: #f85149; line-height: 1.4; padding: 6px; background: rgba(248, 81, 73, 0.1); border-radius: 6px; border: 1px solid rgba(248, 81, 73, 0.3);"></div>
+              <button class="spp-ping-btn" style="width: 100%;" onclick="resetToDefaultPedroPose()">↺ Reset to Pedro / Default Start Pose</button>
+              <div id="spp-error-msg" style="display: none; margin-top: 8px; font-size: 11.5px; color: #f85149; line-height: 1.4; padding: 6px; background: rgba(248, 81, 73, 0.1); border-radius: 6px; border: 1px solid rgba(248, 81, 73, 0.3);"></div>
             </div>
 
             <!-- Action Button -->
             <button id="spp-simulate-btn" class="spp-cta-btn" onclick="runCustomSimulation()">
               <span id="spp-btn-icon">⚡</span>
-              <span id="spp-btn-text">Simulate From This Pose & Replay Live (~1s)</span>
+              <span id="spp-btn-text">Replay From This Start Pose (Instant)</span>
             </button>
-
-            <!-- Quick Setup Hint -->
-            <div class="spp-help-accordion" onclick="toggleHelpInstructions()">
-              <span>📖 Need to set up your free Hugging Face backend? (Click to view guide)</span>
-              <div id="spp-help-content" style="display: none; margin-top: 8px; color: #c9d1d9; line-height: 1.5; font-size: 11.5px;">
-                1. Create a free Space at <b>huggingface.co/new-space</b> with SDK: <b>Gradio</b> (100% Free - do NOT choose Docker).<br>
-                2. Push this repo: <code>git remote add hf ... && git push hf main</code>.<br>
-                3. Paste your Space's Direct URL above (e.g. <code>https://user-ftc-sim-api.hf.space</code>).<br>
-                See <b>HUGGINGFACE_SETUP.md</b> for detailed steps.
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -166,13 +155,13 @@
     if (!document.getElementById("spp-toast")) {
       const toast = document.createElement("div");
       toast.id = "spp-toast";
-      toast.innerHTML = `<span style="font-size: 16px;">✓</span> <span id="spp-toast-text">Simulation replaying live!</span>`;
+      toast.innerHTML = `<span style="font-size: 16px;">✓</span> <span id="spp-toast-text">Replaying from custom start pose!</span>`;
       document.body.appendChild(toast);
     }
 
     setupCanvas();
     setupInputs();
-    checkServerHealth(false);
+    // In-browser instant pose transform — no external backend needed
   }
 
   function setupCanvas() {
@@ -513,97 +502,119 @@
     }
   };
 
+  function readActiveRecordingJson() {
+    if (!window.globalUnityInstance || !window.globalUnityInstance.Module) return null;
+    const module = window.globalUnityInstance.Module;
+    let vPath = window.currentActiveVirtualPath;
+    if (!vPath) {
+      const recSelect = document.getElementById("recording-select");
+      if (recSelect && recSelect.value) {
+        vPath = recSelect.value.startsWith("/") ? recSelect.value : "/recordings/" + recSelect.value;
+      }
+    }
+    if (!vPath) return null;
+    try {
+      const bytes = module.FS.readFile(vPath);
+      const text = new TextDecoder().decode(bytes);
+      return { vPath, data: JSON.parse(text) };
+    } catch (e) {
+      console.warn("[start-pose-picker] Could not read active recording:", vPath, e);
+      return null;
+    }
+  }
+
+  window.resetToDefaultPedroPose = function () {
+    const active = readActiveRecordingJson();
+    if (active && active.data && active.data.header && active.data.header.startPose) {
+      const sp = active.data.header.startPose;
+      const x = Number(sp.xInches || 0);
+      const y = Number(sp.yInches || 0);
+      const deg = Math.round(((Number(sp.headingRadians || 0) * 180) / Math.PI) * 10) / 10;
+      if (typeof window.applyPresetPose === "function") {
+        window.applyPresetPose(x, y, deg);
+      } else {
+        currentPose = { x, y, deg };
+      }
+      showToast(`Reset to Pedro / Default Start Pose (${x.toFixed(1)}", ${y.toFixed(1)}", ${deg}°)`);
+    } else {
+      if (typeof window.applyPresetPose === "function") {
+        window.applyPresetPose(0, 0, 0);
+      }
+    }
+  };
+
   window.runCustomSimulation = async function () {
     const btn = document.getElementById("spp-simulate-btn");
     const btnText = document.getElementById("spp-btn-text");
     const btnIcon = document.getElementById("spp-btn-icon");
     const errMsg = document.getElementById("spp-error-msg");
-    const url = (document.getElementById("spp-server-url") ? document.getElementById("spp-server-url").value : serverUrl).trim().replace(/\/+$/, "");
-
-    const team = getActiveTeam();
-    const opMode = getActiveOpMode();
 
     if (btn) btn.disabled = true;
     if (btnIcon) btnIcon.innerHTML = `<div class="spp-spinner"></div>`;
-    if (btnText) btnText.textContent = "Simulating Autonomous on HF Backend (~1s)...";
+    if (btnText) btnText.textContent = "Applying Start Pose...";
     if (errMsg) errMsg.style.display = "none";
 
     try {
-      const payload = {
-        team: team,
-        opMode: opMode,
-        startPose: {
-          xInches: currentPose.x,
-          yInches: currentPose.y,
-          headingDegrees: currentPose.deg
-        }
+      const active = readActiveRecordingJson();
+      if (!active || !active.data || !active.data.header || !Array.isArray(active.data.loops)) {
+        throw new Error("No active autonomous recording loaded yet. Wait for the 3D Arena to finish loading.");
+      }
+
+      const simData = active.data;
+      const origStart = simData.header.startPose || { xInches: 0, yInches: 0, headingRadians: 0 };
+      const origX = Number(origStart.xInches || 0);
+      const origY = Number(origStart.yInches || 0);
+      const origTheta = Number(origStart.headingRadians || 0);
+
+      const targetX = Number(currentPose.x || 0);
+      const targetY = Number(currentPose.y || 0);
+      const targetTheta = (Number(currentPose.deg || 0) * Math.PI) / 180;
+      const dTheta = targetTheta - origTheta;
+      const cosD = Math.cos(dTheta);
+      const sinD = Math.sin(dTheta);
+
+      simData.header.startPose = {
+        xInches: targetX,
+        yInches: targetY,
+        headingRadians: targetTheta
       };
 
-      const resp = await fetch(`${url}/simulate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      if (!resp.ok) {
-        const errJson = await resp.json().catch(() => ({}));
-        throw new Error(errJson.stderr || errJson.error || `Simulation server returned HTTP ${resp.status}`);
-      }
-
-      const simJsonText = await resp.text();
-      const simData = JSON.parse(simJsonText);
-
-      // Verify valid recording
-      if (!simData.header || !simData.loops) {
-        throw new Error("Invalid simulation JSON returned by server.");
-      }
-
-      // Load into Unity WebGL instance via virtual filesystem
-      if (window.globalUnityInstance && window.globalUnityInstance.Module) {
-        const module = window.globalUnityInstance.Module;
-        const fileName = `custom_sim_${Date.now()}.json`;
-        const vPath = `/recordings/${fileName}`;
-        const encodedBytes = new TextEncoder().encode(simJsonText);
-
-        try {
-          module.FS_createDataFile("/recordings", fileName, encodedBytes, true, true, true);
-        } catch (dup) {
-          module.FS.writeFile(vPath, encodedBytes);
+      for (let i = 0; i < simData.loops.length; i++) {
+        const pose = simData.loops[i]?.pose;
+        if (!pose || pose.xInches == null || pose.yInches == null) continue;
+        const relX = Number(pose.xInches) - origX;
+        const relY = Number(pose.yInches) - origY;
+        pose.xInches = targetX + (relX * cosD - relY * sinD);
+        pose.yInches = targetY + (relX * sinD + relY * cosD);
+        if (pose.headingRadians != null) {
+          pose.headingRadians = Number(pose.headingRadians) + dTheta;
         }
-
-        // Trigger Unity replay
-        window.openRecording(vPath);
-
-        // Update top-bar dropdown display
-        const recSelect = document.getElementById("recording-select");
-        if (recSelect) {
-          let customOpt = recSelect.querySelector("option[data-custom-pose='true']");
-          if (!customOpt) {
-            customOpt = document.createElement("option");
-            customOpt.setAttribute("data-custom-pose", "true");
-            recSelect.insertBefore(customOpt, recSelect.firstChild);
-          }
-          customOpt.value = vPath;
-          customOpt.textContent = `🎯 Custom (${currentPose.x}", ${currentPose.y}", ${currentPose.deg}°) - ${opMode}`;
-          recSelect.value = vPath;
-        }
-
-        closeStartPoseModal();
-        showToast(`✓ Simulated ${opMode} from (${currentPose.x}", ${currentPose.y}", ${currentPose.deg}°) in 300ms!`);
-      } else {
-        alert("3D Simulation Arena is still loading. Please wait a moment and try again.");
       }
+
+      const module = window.globalUnityInstance.Module;
+      const fileName = `custom_pose_${Date.now()}.json`;
+      const vPath = `/recordings/${fileName}`;
+      const encodedBytes = new TextEncoder().encode(JSON.stringify(simData));
+
+      try {
+        module.FS_createDataFile("/recordings", fileName, encodedBytes, true, true, true);
+      } catch (dup) {
+        module.FS.writeFile(vPath, encodedBytes);
+      }
+
+      window.openRecording(vPath);
+      closeStartPoseModal();
+      showToast(`✓ Replaying from (${targetX}", ${targetY}", ${currentPose.deg}°)`);
     } catch (e) {
       console.error("[runCustomSimulation] Error:", e);
       if (errMsg) {
         errMsg.style.display = "block";
-        errMsg.innerHTML = `<b>Simulation Failed:</b> ${e.message}<br><br>💡 If your Hugging Face Space is sleeping, please allow ~20s for it to wake up and click again.`;
+        errMsg.textContent = e.message;
       }
-      alert(`Simulation failed: ${e.message}\n\nPlease check that your Hugging Face Space is running at ${url}`);
     } finally {
       if (btn) btn.disabled = false;
       if (btnIcon) btnIcon.innerHTML = `⚡`;
-      if (btnText) btnText.textContent = "Simulate From This Pose & Replay Live (~1s)";
+      if (btnText) btnText.textContent = "Replay From This Start Pose (Instant)";
     }
   };
 
@@ -642,7 +653,19 @@
       }
     }
 
-    setTimeout(setupCanvas, 50);
+    setTimeout(() => {
+      setupCanvas();
+      const active = readActiveRecordingJson();
+      if (active && active.data && active.data.header && active.data.header.startPose) {
+        const sp = active.data.header.startPose;
+        const x = Number(sp.xInches || 0);
+        const y = Number(sp.yInches || 0);
+        const deg = Math.round(((Number(sp.headingRadians || 0) * 180) / Math.PI) * 10) / 10;
+        if (typeof window.applyPresetPose === "function") {
+          window.applyPresetPose(x, y, deg);
+        }
+      }
+    }, 50);
   };
 
   window.closeStartPoseModal = function () {

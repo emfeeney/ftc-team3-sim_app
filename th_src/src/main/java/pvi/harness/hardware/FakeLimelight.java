@@ -30,6 +30,8 @@ import java.net.InetAddress;
 public class FakeLimelight extends Limelight3A implements SimulatedSensor {
     private final String name;
     private LimelightView view = LimelightView.nothing();
+    /** D47: the webcam it sees through, or null (then only a script or setView sets the view). */
+    private FakeWebcam camera;
     private boolean running;
     private int pipeline;
     private int pollRateHz = 100;
@@ -52,9 +54,27 @@ public class FakeLimelight extends Limelight3A implements SimulatedSensor {
         return pipeline;
     }
 
-    /** Sets what it sees directly, for quick tests. */
+    /**
+     * Sets what it sees directly, for quick tests. This also unlinks any camera
+     * ({@link #seeThrough}), so the test's view is the one that stays.
+     */
     public FakeLimelight setView(LimelightView view) {
         this.view = view;
+        this.camera = null;
+        return this;
+    }
+
+    /**
+     * D47: sees the AprilTags in this webcam's pictures (set up with {@code limelight.<name>.camera}
+     * in a robot's camera file). The webcam is kept taking pictures even if no VisionPortal uses
+     * it. A script value for this Limelight still wins.
+     */
+    public FakeLimelight seeThrough(FakeWebcam webcam) {
+        if (webcam == null) {
+            throw new IllegalArgumentException("seeThrough(...) needs a webcam, not null.");
+        }
+        webcam.connect((tags, frameTimeNanos) -> { });   // keeps it taking pictures
+        this.camera = webcam;
         return this;
     }
 
@@ -64,6 +84,9 @@ public class FakeLimelight extends Limelight3A implements SimulatedSensor {
                 now.sinceInitSeconds(), now.sinceStartSeconds());
         if (scripted != null) {
             view = scripted;
+        } else if (camera != null) {
+            // The camera's latest picture (taken up to one loop earlier, like a real camera's delay).
+            view = LimelightView.tags(camera.lastFrameTags().toArray(new SeenAprilTag[0]));
         }
         if (running) {
             latest = parse(toJson(view, pipeline));

@@ -26,6 +26,7 @@ class HarnessConfigTest {
             "host.dependenciesFile=../../build.dependencies.gradle",
             "host.skipLibraries=org.firstinspires.ftc:Blocks, androidx.appcompat:appcompat",
             "robot.name=Test Bot",
+            "robot.id=test-bot",
             "drive.frontLeft=fl",
             "drive.frontRight=fr",
             "drive.rearLeft=rl",
@@ -41,7 +42,6 @@ class HarnessConfigTest {
             "devices.analogInputs=",
             "devices.otos=",
             "devices.limelights=",
-            "devices.webcams=",
             "devices.blinkers=",
             "devices.deadWheels=leftOdo:parallel:7.0, strafeOdo:perpendicular:-3.5",
             "drive.frontLeft.direction=REVERSE",
@@ -83,8 +83,7 @@ class HarnessConfigTest {
 
         // Reading cleanly is the check in any repo; the values below are PVI's own robot.
         Assumptions.assumeTrue(config.pviExtras(), "PVI's values; another team's file has its own");
-        assertTrue(config.teamCodeSourceDir().endsWith("TeamCode/src/main/java"),
-                "points to TeamCode: " + config.teamCodeSourceDir());
+        assertEquals("../../TeamCode/src/main/java", config.teamCodeSourceDir());
         assertEquals(new HarnessConfig.DriveMotorNames("frontLeft", "frontRight", "rearLeft", "rearRight"),
                 config.driveMotors());
         assertEquals("pinpoint", config.pinpointName());

@@ -10,8 +10,13 @@ import java.util.function.Supplier;
 import pvi.harness.ds.RumbleRecord;
 import pvi.harness.physics.DriveModel;
 import pvi.harness.physics.Dynamics;
+import pvi.harness.physics.GamePiece;
+import pvi.harness.physics.HiveTilt;
 import pvi.harness.physics.MecanumKinematics;
+import pvi.harness.physics.ModelValue;
 import pvi.harness.physics.PhysicsBackend;
+import pvi.harness.physics.PieceModel;
+import pvi.harness.physics.PieceMotion;
 import pvi.harness.physics.Pose;
 import pvi.harness.physics.PoseEstimator;
 import pvi.harness.physics.WheelPushes;
@@ -19,6 +24,7 @@ import pvi.harness.physics.WheelReader;
 import pvi.harness.runtime.HarnessConfig;
 import pvi.harness.runtime.JsonReader;
 import pvi.harness.runtime.OpModeRunner;
+import pvi.harness.runtime.PlannedPath;
 import pvi.harness.runtime.RunRecorder;
 import pvi.harness.runtime.RunRecording;
 import pvi.harness.runtime.RunRecordingJson;
@@ -73,6 +79,10 @@ public final class BridgeSession {
     private int sentRumbles1;
     private int sentRumbles2;
     private int sentEvents;
+    private int sentPlans;
+    /** Version 8, Unity's physics: how long Unity has moved its balls since STOP, and whether the final score is in. */
+    private double settleSeconds;
+    private boolean settleDone;
     /** True once the reply asks the server to close the connection. */
     private boolean closing;
     /** Makes the controller reader when a run asks for {@code "input": "controllers"}. */
@@ -154,7 +164,8 @@ public final class BridgeSession {
                 case BridgeProtocol.STOP -> stop();
                 case BridgeProtocol.SAVE -> save(message);
                 case BridgeProtocol.BYE -> bye();
-                default -> error("Unknown message type \"" + type + "\". Known: hello, load, init, step, play, stop, save, bye.");
+                case BridgeProtocol.SETTLE -> settle(message);
+                default -> error("Unknown message type \"" + type + "\". Known: hello, load, init, step, play, stop, settle, save, bye.");
             };
         } catch (IllegalArgumentException e) {
             // A field with the wrong type, e.g. a gamepad written wrongly, or problems in harness.properties.
@@ -202,7 +213,7 @@ public final class BridgeSession {
             return error("Send \"hello\" first.");
         }
         Object id = message.get("opMode");
-        BridgeOpModes.Entry found = id instanceof String ? BridgeOpModes.find((String) id) : null;
+        BridgeOpModes.Entry found = opModeList.get().stream().filter(e -> e.id().equals(id)).findFirst().orElse(null);
         if (found == null) {
             return error("Unknown OpMode " + (id == null ? "(none given)" : jsonValue(id)) + ". The \"welcome\" reply lists them.");
         }
@@ -244,17 +255,23 @@ public final class BridgeSession {
             // Same robot, same start; only the backend that moves it is Unity's.
             remotePhysics = new RemotePhysics(builtIn.start());
             runner.usePositionEstimator(new PoseEstimator(builtIn.model(), wheels(), builtIn.start(), remotePhysics));
+            // Version 6: Unity's physics moves the loose balls too; the harness keeps the rules.
+            runner.positionEstimator().pieces().useOutsidePhysics();
         }
         recorder = RunRecorder.attachTo(runner);
         sentRumbles1 = 0;
         sentRumbles2 = 0;
         sentEvents = 0;
+        sentPlans = 0;
+        settleSeconds = 0;
+        settleDone = false;
         phase = Phase.LOADED;
         return reply(BridgeProtocol.LOADED,
                 field("opMode", RunRecordingJson.string(entry.id())),
                 field("input", RunRecordingJson.string(liveGamepads == null ? "messages" : "controllers")),
                 field("physics", RunRecordingJson.string(remotePhysics == null ? "harness" : "unity")),
                 field("robotPhysics", robotPhysicsJson()),
+                field("pieceModel", pieceModelJson()),
                 field("matchSeconds", RunRecordingJson.number(entry.period().seconds())),
                 field("header", RunRecordingJson.headerJson(recorder.header())));
     }
@@ -273,6 +290,7 @@ public final class BridgeSession {
         }
         readGamepads(message);
         readPhysicsState(message);
+        readPieces(message);
         if (phase == Phase.INITIALIZED) {
             return runCall(() -> runner.initLoop(1), Phase.INITIALIZED);
         }
@@ -291,6 +309,7 @@ public final class BridgeSession {
         }
         readGamepads(message);
         readPhysicsState(message);
+        readPieces(message);
         return runCall(() -> runner.start(), Phase.PLAYING);
     }
 
@@ -311,6 +330,65 @@ public final class BridgeSession {
         }
         Path saved = recorder.save((String) name); // refuses names that could leave build/recordings
         return reply(BridgeProtocol.SAVED, field("path", RunRecordingJson.string(saved.toString())));
+    }
+
+    /**
+     * Version 8 (D50), after STOP with Unity's physics: Unity's balls after one more step with the robot frozen. The
+     * harness takes them as it does during the run (CELLs, HIVE tips), and once nothing moves, or after
+     * {@link OpModeRunner#SETTLE_LIMIT_SECONDS}, the final score is taken from them and sent.
+     */
+    private String settle(Map<String, Object> message) {
+        if (remotePhysics == null) {
+            return error("\"settle\" is for Unity's physics only: with the harness's own physics the frame that ends the run "
+                    + "already has the final score.");
+        }
+        if (phase != Phase.STOPPED || runner.stage() != RunResult.Stage.STOP) {
+            return error("\"settle\" works after the run has ended (\"stop\", or the end of the match).");
+        }
+        if (settleDone) {
+            return reply(BridgeProtocol.SETTLING, field("settleSeconds", RunRecordingJson.number(settleSeconds)),
+                    field("done", "true"), field("score", RunRecordingJson.scoreJson(runner.finalScore())));
+        }
+        List<PieceMotion> motions = readPieces(message);
+        PoseEstimator estimator = runner.positionEstimator();
+        double h = runner.loopPeriodSeconds();
+        Pose frozen = estimator.pose();
+        List<HiveTilt> hivesBefore = estimator.pieces().hiveTilts();
+        estimator.pieces().step(frozen, frozen, estimator.model().lengthInches(), estimator.model().widthInches(), h,
+                estimator.hasWalls());
+        settleSeconds += h;
+        boolean still = estimator.pieces().atRest() || unityBallsStill(motions, hivesBefore);
+        if (!still && settleSeconds < OpModeRunner.SETTLE_LIMIT_SECONDS - 1e-9) {
+            return reply(BridgeProtocol.SETTLING, field("settleSeconds", RunRecordingJson.number(settleSeconds)),
+                    field("done", "false"));
+        }
+        settleDone = true;
+        return reply(BridgeProtocol.SETTLING, field("settleSeconds", RunRecordingJson.number(settleSeconds)),
+                field("done", "true"),
+                field("score", RunRecordingJson.scoreJson(runner.finalScoreFromOutside(still, settleSeconds))));
+    }
+
+    /** Below this speed a ball of Unity's counts as still: PhysX leaves resting balls a hair above 0 (D50 settle). */
+    static final double STILL_INCHES_PER_SECOND = 0.5;
+
+    /**
+     * True if Unity's balls have come to rest: every one it sent moves slower than {@link #STILL_INCHES_PER_SECOND},
+     * none is in the air, and no HIVE swung in this step. (The harness's own test, every speed exactly 0, never
+     * passes with PhysX's numbers.)
+     */
+    private boolean unityBallsStill(List<PieceMotion> motions, List<HiveTilt> hivesBefore) {
+        for (PieceMotion m : motions) {
+            if (Math.sqrt(m.vxInchesPerSecond() * m.vxInchesPerSecond() + m.vyInchesPerSecond() * m.vyInchesPerSecond()
+                    + m.vzInchesPerSecond() * m.vzInchesPerSecond()) >= STILL_INCHES_PER_SECOND) {
+                return false;
+            }
+        }
+        for (GamePiece piece : runner.positionEstimator().pieces().snapshot()) {
+            if (GamePiece.FLYING.equals(piece.state())) {
+                return false;
+            }
+        }
+        return hivesBefore.equals(runner.positionEstimator().pieces().hiveTilts());
     }
 
     private String bye() {
@@ -340,11 +418,12 @@ public final class BridgeSession {
         return frame();
     }
 
-    /** The newest loop, plus rumbles and events that happened since the last frame. */
+    /** The newest loop, plus rumbles, events and planned paths (version 7, D39) that came since the last frame. */
     private String frame() {
         List<RumbleRecord> rumbles1 = runner.driver1().rumbles();
         List<RumbleRecord> rumbles2 = runner.driver2().rumbles();
         List<RunRecording.Event> events = recorder.events();
+        List<PlannedPath> plans = recorder.plannedPaths();
         String reply = reply(BridgeProtocol.FRAME,
                 field("loop", RunRecordingJson.loopJson(recorder.lastLoop())),
                 field("gamepad1Rumbles", RunRecordingJson.rumblesJson(rumbles1.subList(sentRumbles1, rumbles1.size()))),
@@ -354,10 +433,17 @@ public final class BridgeSession {
                 field("controllers", controllerStatus()),
                 field("controllerProblem", controllers == null || controllers.problem() == null ? "null"
                         : RunRecordingJson.string(controllers.problem())),
-                field("driveCommand", driveCommandJson()));
+                field("driveCommand", driveCommandJson()),
+                field("pieceLaunches", pieceLaunchesJson()),
+                field("plannedPaths", RunRecordingJson.plannedPathsJson(plans.subList(Math.min(sentPlans, plans.size()), plans.size()))),
+                // Version 8: the final score once the run has ended. With Unity's physics the balls are still
+                // Unity's to move, so the score comes with the last "settle" answer instead.
+                field("score", phase == Phase.STOPPED && remotePhysics == null && runner.stage() == RunResult.Stage.STOP
+                        ? RunRecordingJson.scoreJson(runner.finalScore()) : "null"));
         sentRumbles1 = rumbles1.size();
         sentRumbles2 = rumbles2.size();
         sentEvents = events.size();
+        sentPlans = plans.size();
         return reply;
     }
 
@@ -411,6 +497,101 @@ public final class BridgeSession {
                 new MecanumKinematics.RobotVelocity(number(state, "forwardInchesPerSecond"),
                         number(state, "leftInchesPerSecond"), number(state, "counterClockwiseRadiansPerSecond")),
                 (String) contact, (String) obstacles));
+    }
+
+    /**
+     * Version 6, with Unity's physics: where Unity's balls are ("pieces": id, position, velocity), for
+     * the harness's rules this loop. Optional; refused with the harness's own physics.
+     */
+    @SuppressWarnings("unchecked")
+    private List<PieceMotion> readPieces(Map<String, Object> message) {
+        Object raw = message.get("pieces");
+        if (raw == null) {
+            return List.of();
+        }
+        if (remotePhysics == null) {
+            throw new IllegalArgumentException("This run uses the harness's own physics, so steps must not carry "
+                    + "\"pieces\". Load with \"physics\": \"unity\" to send them.");
+        }
+        if (!(raw instanceof List)) {
+            throw new IllegalArgumentException("\"pieces\" must be a list of {\"id\", \"xInches\", \"yInches\", \"zInches\", "
+                    + "\"vxInchesPerSecond\", \"vyInchesPerSecond\", \"vzInchesPerSecond\"}.");
+        }
+        List<PieceMotion> motions = new ArrayList<>();
+        for (Object item : (List<Object>) raw) {
+            if (!(item instanceof Map) || !(((Map<String, Object>) item).get("id") instanceof String)) {
+                throw new IllegalArgumentException("Each of \"pieces\" needs an \"id\" (text), a position and a velocity.");
+            }
+            Map<String, Object> m = (Map<String, Object>) item;
+            motions.add(new PieceMotion((String) m.get("id"), pieceNumber(m, "xInches"), pieceNumber(m, "yInches"),
+                    pieceNumber(m, "zInches"), pieceNumber(m, "vxInchesPerSecond"), pieceNumber(m, "vyInchesPerSecond"),
+                    pieceNumber(m, "vzInchesPerSecond")));
+        }
+        runner.positionEstimator().pieces().supply(motions);
+        return motions;
+    }
+
+    private static double pieceNumber(Map<String, Object> piece, String name) {
+        Object value = piece.get(name);
+        if (!(value instanceof Double)) {
+            throw new IllegalArgumentException("pieces[" + piece.get("id") + "]." + name + " must be a number, not "
+                    + jsonValue(value) + ".");
+        }
+        return (Double) value;
+    }
+
+    /** The balls the harness just started moving, for Unity to take over (version 6); "[]" with the harness's own physics. */
+    private String pieceLaunchesJson() {
+        if (remotePhysics == null || runner.positionEstimator() == null) {
+            return "[]";
+        }
+        StringBuilder json = new StringBuilder("[");
+        for (PieceMotion m : runner.positionEstimator().pieces().takeLaunches()) {
+            json.append(json.length() == 1 ? "" : ", ").append("{")
+                    .append(field("id", RunRecordingJson.string(m.id()))).append(", ")
+                    .append(field("xInches", RunRecordingJson.number(m.xInches()))).append(", ")
+                    .append(field("yInches", RunRecordingJson.number(m.yInches()))).append(", ")
+                    .append(field("zInches", RunRecordingJson.number(m.zInches()))).append(", ")
+                    .append(field("vxInchesPerSecond", RunRecordingJson.number(m.vxInchesPerSecond()))).append(", ")
+                    .append(field("vyInchesPerSecond", RunRecordingJson.number(m.vyInchesPerSecond()))).append(", ")
+                    .append(field("vzInchesPerSecond", RunRecordingJson.number(m.vzInchesPerSecond()))).append("}");
+        }
+        return json.append("]").toString();
+    }
+
+    /**
+     * The balls' facts, for Unity's physics (version 6): each value with its unit and whether it was
+     * measured, from the harness's PieceModel. Null when the robot isn't tracked. Version 7 adds the air
+     * drag per ball kind (D40), worked out from the drag coefficient: measured only if it is.
+     */
+    private String pieceModelJson() {
+        if (runner.positionEstimator() == null) {
+            return "null";
+        }
+        PieceModel model = runner.positionEstimator().pieces().model();
+        return "{" + field("rollingDeceleration", modelValueJson(model.rollingDeceleration()))
+                + ", " + field("wallBounce", modelValueJson(model.wallBounce()))
+                + ", " + field("pieceBounce", modelValueJson(model.pieceBounce()))
+                + ", " + field("robotBounce", modelValueJson(model.robotBounce()))
+                + ", " + field("pollenMass", modelValueJson(model.pollenMass()))
+                + ", " + field("nectarMass", modelValueJson(model.nectarMass()))
+                + ", " + field("pollenDragPerInch", dragJson(model, GamePiece.POLLEN))
+                + ", " + field("nectarDragPerInch", dragJson(model, GamePiece.RED_NECTAR)) + "}";
+    }
+
+    /**
+     * One kind's drag (slowing = this times speed squared), in 1/in, measured only if the drag coefficient is.
+     * Sent to 6 significant digits: the recording's 3 decimals would keep only one (about 0.001).
+     */
+    private static String dragJson(PieceModel model, String kind) {
+        String value = new java.math.BigDecimal(model.dragPerInch(kind)).round(new java.math.MathContext(6)).toPlainString();
+        return "{" + field("value", value) + ", " + field("unit", RunRecordingJson.string("1/in"))
+                + ", " + field("measured", Boolean.toString(model.dragCoefficient().measured())) + "}";
+    }
+
+    private static String modelValueJson(ModelValue v) {
+        return "{" + field("value", RunRecordingJson.number(v.value())) + ", " + field("unit", RunRecordingJson.string(v.unit()))
+                + ", " + field("measured", Boolean.toString(v.measured())) + "}";
     }
 
     /** The wheel reader for the loaded robot, read from its settings the first time it's needed. */

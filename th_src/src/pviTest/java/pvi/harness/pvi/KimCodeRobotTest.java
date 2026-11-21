@@ -3,8 +3,9 @@ package pvi.harness.pvi;
 import java.util.List;
 import java.util.Map;
 
+import org.firstinspires.ftc.teamcode.KimCode.KimKimCode.SimpleLeave;
+import org.firstinspires.ftc.teamcode.KimCode.KimKimCode.TeleopV1;
 import org.firstinspires.ftc.teamcode.opmodes.teleop.TeamATeleOp;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import pvi.harness.bridge.BridgeProtocol;
@@ -33,9 +34,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * PVI extra (D18): KimCode's OpModes run on their own robot, {@code robots/kimcode/drive.properties},
  * and Team A's OpModes stay on Team A's.
  *
- * <p>TeleopV1's left stick is swapped on purpose in its code (team commit a37623d): the stick's
- * left/right drives the robot forward and its up/down strafes. These tests check the code as it is,
- * so if the team changes the mapping, they change too.</p>
+ * <p>TeleopV1's left stick uses the normal mapping since team commit 810de43: up drives the robot
+ * forward and right strafes it right. These tests check the code as it is, so if the team changes
+ * the mapping, they change too.</p>
  */
 class KimCodeRobotTest {
     /** A bridge gamepad message: the left stick all the way right. */
@@ -44,20 +45,17 @@ class KimCodeRobotTest {
 
     private static OpModeCatalog.Entry opMode(String simpleName) {
         return OpModeCatalog.fromConfig(HarnessConfig.load()).stream()
-                .filter(e -> e.simpleName().equals(simpleName)).findFirst().orElse(null);
+                .filter(e -> e.simpleName().equals(simpleName)).findFirst().orElseThrow();
     }
 
     private static FakeHardwareMap robotFor(String simpleName) {
-        OpModeCatalog.Entry entry = opMode(simpleName);
-        return entry == null ? null : RobotConfigs.forOpMode(entry, HarnessConfig.load());
+        return RobotConfigs.forOpMode(opMode(simpleName), HarnessConfig.load());
     }
 
     /** TeleopV1 for 1 s with one axis of the left stick pushed; where the robot ends up. */
     private static Pose teleOpWith(Axis axis, double value) {
-        OpModeCatalog.Entry entry = opMode("TeleopV1");
-        Assumptions.assumeTrue(entry != null, "TeleopV1 is present in catalog");
         GamepadScript driver = new GamepadScript().at(0.0).stick(axis, value);
-        OpModeRunner runner = new OpModeRunner(entry.newOpMode(), robotFor("TeleopV1")).gamepad1(driver);
+        OpModeRunner runner = new OpModeRunner(new TeleopV1(), robotFor("TeleopV1")).gamepad1(driver);
         runner.run(0.1, 1.0).assertNoException();
         return runner.positionEstimator().pose();
     }
@@ -66,15 +64,12 @@ class KimCodeRobotTest {
     @Test
     void kimCodesOpModesGetTheirOwnRobot() {
         for (String simpleName : List.of("TeleopV1", "SimpleLeave")) {
-            OpModeCatalog.Entry entry = opMode(simpleName);
-            if (entry == null) {
-                continue;
-            }
             FakeHardwareMap robot = robotFor(simpleName);
             assertEquals("kimcode", robot.configName());
             for (String motor : List.of("fl", "fr", "bl", "br")) {
                 assertNotNull(robot.motor(motor), motor);
             }
+            assertNull(robot.motor("frontLeft"), "not Team A's motors");
             assertEquals("KimCode", robot.settings().robotName());
         }
     }
@@ -111,10 +106,8 @@ class KimCodeRobotTest {
         RobotProfile kimcode = RobotProfile.all(HarnessConfig.load()).stream()
                 .filter(p -> p.id().equals("kimcode")).findFirst().orElseThrow();
         for (String name : kimcode.forOpModes()) {
-            if (opMode(name) != null) {
-                assertTrue(OpModeCatalog.fromConfig(HarnessConfig.load()).stream()
-                        .anyMatch(e -> e.name().equals(name) || e.simpleName().equals(name)), name + " is no OpMode");
-            }
+            assertTrue(OpModeCatalog.fromConfig(HarnessConfig.load()).stream()
+                    .anyMatch(e -> e.name().equals(name) || e.simpleName().equals(name)), name + " is no OpMode");
         }
         HarnessConfig c = kimcode.config();
         for (ModelValue fact : List.of(c.forwardSpeed(), c.strafeSpeed(), c.forwardCoast(), c.lateralCoast(),
@@ -123,20 +116,22 @@ class KimCodeRobotTest {
         }
     }
 
-    /** WHAT: TeleopV1 gets through INIT (Blinker, motors, Limelight) and its left stick moves the robot. */
+    /** WHAT: TeleopV1 gets through INIT (Blinker, motors, Limelight) and up on its left stick drives the robot forward. */
     @Test
-    void teleopV1DrivesForwardOnTheSticksLeftRight() {
-        Pose end = teleOpWith(Axis.LEFT_STICK_X, 1.0);
-
-        assertTrue(end.xInches() > 10 || end.yInches() < -10, "moved on stick X: " + end);
-    }
-
-    /** WHAT: Up on TeleopV1's left stick moves the robot. */
-    @Test
-    void teleopV1StrafesOnTheSticksUpDown() {
+    void teleopV1DrivesForwardOnTheSticksUpDown() {
         Pose end = teleOpWith(Axis.LEFT_STICK_Y, -1.0);
 
-        assertTrue(end.yInches() < -10 || end.xInches() > 10, "moved on stick Y: " + end);
+        assertTrue(end.xInches() > 10, "forward: " + end);
+        assertEquals(0.0, end.yInches(), 0.5, "not sideways: " + end);
+    }
+
+    /** WHAT: Right on TeleopV1's left stick strafes the robot right. */
+    @Test
+    void teleopV1StrafesOnTheSticksLeftRight() {
+        Pose end = teleOpWith(Axis.LEFT_STICK_X, 1.0);
+
+        assertTrue(end.yInches() < -10, "to the right: " + end);
+        assertEquals(0.0, end.xInches(), 0.5, "not forward: " + end);
     }
 
     /**
@@ -145,9 +140,7 @@ class KimCodeRobotTest {
      */
     @Test
     void simpleLeaveRunsAndMoves() {
-        OpModeCatalog.Entry entry = opMode("SimpleLeave");
-        Assumptions.assumeTrue(entry != null, "SimpleLeave is present in catalog");
-        OpModeRunner runner = new OpModeRunner(entry.newOpMode(), robotFor("SimpleLeave"));
+        OpModeRunner runner = new OpModeRunner(new SimpleLeave(), robotFor("SimpleLeave"));
         runner.run(0.1, 2.0).assertNoException();
 
         Pose end = runner.positionEstimator().pose();
@@ -159,7 +152,6 @@ class KimCodeRobotTest {
     @Test
     @SuppressWarnings("unchecked")
     void theBridgeReadsThisRobotsWheelsForUnity() {
-        Assumptions.assumeTrue(opMode("TeleopV1") != null, "TeleopV1 is present in catalog");
         BridgeSession session = new BridgeSession();
         String still = "{\"xInches\": 0, \"yInches\": 0, \"headingRadians\": 0, \"forwardInchesPerSecond\": 0,"
                 + " \"leftInchesPerSecond\": 0, \"counterClockwiseRadiansPerSecond\": 0, \"wallContact\": \"\"}";
@@ -168,17 +160,17 @@ class KimCodeRobotTest {
         session.handle("{\"type\": \"init\"}");
         session.handle("{\"type\": \"play\", \"physicsState\": " + still + "}");
 
-        // Step past PinpointLocalizer's reset sleep (if used) so the OpMode enters its loop.
+        // A few steps: the OpMode's own thread reacts to the stick within a loop or so.
         Map<String, Object> frame = null;
-        for (int i = 0; i < 35; i++) {
+        for (int i = 0; i < 3; i++) {
             frame = (Map<String, Object>) JsonReader.parse(session.handle("{\"type\": \"step\", \"gamepad1\": "
                     + STICK_RIGHT + ", \"physicsState\": " + still + "}"));
         }
 
         Map<String, Object> command = (Map<String, Object>) frame.get("driveCommand");
         assertNotNull(command, String.valueOf(frame));
-        assertTrue(Math.abs((Double) command.get("frontLeft")) > 0.5, command.toString());
-        assertTrue(Math.abs((Double) command.get("rearRight")) > 0.5, command.toString());
+        assertTrue((Double) command.get("frontLeft") > 0.5, command.toString());
+        assertTrue((Double) command.get("rearRight") > 0.5, command.toString());
     }
 
     /**
@@ -188,7 +180,6 @@ class KimCodeRobotTest {
     @Test
     @SuppressWarnings("unchecked")
     void anAutonomousThatReturnsEndsTheBridgeRunEarly() {
-        Assumptions.assumeTrue(opMode("SimpleLeave") != null, "SimpleLeave is present in catalog");
         BridgeSession session = new BridgeSession();
         session.handle("{\"type\": \"hello\", \"version\": " + BridgeProtocol.VERSION + "}");
         session.handle("{\"type\": \"load\", \"opMode\": \"SimpleLeave\"}");
@@ -211,14 +202,12 @@ class KimCodeRobotTest {
     /** WHAT: A drive on this robot can be saved as a test, which makes the same robot. */
     @Test
     void aSavedTestMakesTheSameRobot() {
-        OpModeCatalog.Entry entry = opMode("TeleopV1");
-        Assumptions.assumeTrue(entry != null, "TeleopV1 is present in catalog");
-        OpModeRunner runner = new OpModeRunner(entry.newOpMode(), robotFor("TeleopV1"));
+        OpModeRunner runner = new OpModeRunner(new TeleopV1(), robotFor("TeleopV1"));
         RunRecorder recorder = RunRecorder.attachTo(runner);
-        runner.run(0.6, 0.2).assertNoException();
+        runner.run(0.1, 0.2).assertNoException();
 
         String source = RecordedTestWriter.source(recorder.recording(), new RecordedTestWriter.Options(
-                "KimDrive", entry.className(), "test", "2026-11-03", false));
+                "KimDrive", TeleopV1.class.getName(), "test", "2026-11-03", false));
 
         assertTrue(source.contains("RobotConfigs.profile(\"kimcode\")"), source);
     }

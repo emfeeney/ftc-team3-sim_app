@@ -31,11 +31,28 @@ package pvi.harness.bridge;
  *       the harness's own physics does: "loaded" robotPhysics says {@code robotObstacles}, and each
  *       physicsState may carry {@code obstacleContact} ("HIVE frame", "far FLOWER"), which becomes a
  *       "Robot hit the ..." event, the same as with the harness's physics.</li>
+ *   <li>Version 6 (manager decision D30): with {@code "physics": "unity"}, Unity's physics moves the
+ *       loose balls too (on the tiles, in the air, in a CELL), and the harness keeps the rules
+ *       (intake, holding, launching, FLOWERs, CELLs, the HIVE tip). "loaded" carries
+ *       {@code pieceModel} (the balls' facts); each "step" and "play" may carry {@code pieces}, Unity's
+ *       balls ({@link pvi.harness.physics.PieceMotion}: id, position, velocity); each frame carries
+ *       {@code pieceLaunches}, the balls the harness just started moving (launched, released by a
+ *       FLOWER, spat out), with their start position and velocity, for Unity to take over.</li>
+ *   <li>Version 7 (manager decisions D39, D40): each frame carries {@code plannedPaths}, a Pedro
+ *       robot's planned path each time it changed since the last frame, in the run recording's
+ *       version 7 layout (empty for a robot without Pedro); "loaded" pieceModel carries
+ *       {@code pollenDragPerInch} and {@code nectarDragPerInch}, the air drag on a flying ball.</li>
+ *   <li>Version 8 (manager decision D50): match points. Each frame's loop carries {@code score} (the
+ *       run recording's version 8 layout), and the frame that ends the run carries a top-level
+ *       {@code score}, the final one once the pieces have come to rest. With Unity's physics that
+ *       frame has none yet: Unity keeps moving its balls, robot frozen, and sends each step as
+ *       {@code settle {pieces}}; the harness answers {@code settling {settleSeconds, done}}, and
+ *       once the balls are still (or after 5 s) {@code done} is true and it carries {@code score}.</li>
  * </ul>
  *
  * <pre>
  *   Unity                          harness
- *   hello {version: 5}       -->
+ *   hello {version: 8}       -->
  *                            <--   welcome {opModes: [...]}
  *   load {opMode: "TeamATeleOp", input: "controllers"} -->
  *                            <--   loaded {header: {...}}
@@ -48,7 +65,9 @@ package pvi.harness.bridge;
  *   step                     -->
  *                            <--   frame {loop: {...}}          (LOOP, repeat; finished at the end of the match)
  *   stop                     -->
- *                            <--   frame {loop: {...}, finished: true}   (STOP)
+ *                            <--   frame {loop: {...}, finished: true, score: {...}}   (STOP; no score yet with Unity's physics)
+ *   settle {pieces: [...]}   -->                                (Unity's physics only, after STOP, repeat)
+ *                            <--   settling {settleSeconds, done, score once done}
  *   save {name: "my-drive"}  -->
  *                            <--   saved {path: "..."}
  *   bye                      -->
@@ -57,7 +76,7 @@ package pvi.harness.bridge;
  */
 public final class BridgeProtocol {
     /** Message format version. Raise it (and update the README) whenever any message changes. */
-    public static final int VERSION = 5;
+    public static final int VERSION = 8;
     /** The port the harness listens on unless told otherwise. */
     public static final int DEFAULT_PORT = 7465;
 
@@ -70,6 +89,8 @@ public final class BridgeProtocol {
     public static final String STOP = "stop";
     public static final String SAVE = "save";
     public static final String BYE = "bye";
+    /** Version 8: after STOP with Unity's physics, where Unity's balls are after one more step. */
+    public static final String SETTLE = "settle";
 
     // Message types the harness sends.
     public static final String WELCOME = "welcome";
@@ -77,6 +98,8 @@ public final class BridgeProtocol {
     public static final String FRAME = "frame";
     public static final String SAVED = "saved";
     public static final String GOODBYE = "goodbye";
+    /** Version 8: the answer to {@link #SETTLE}. */
+    public static final String SETTLING = "settling";
     public static final String ERROR = "error";
 
     /** Only constants here; nothing to create. */

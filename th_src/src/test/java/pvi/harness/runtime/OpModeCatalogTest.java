@@ -42,7 +42,8 @@ class OpModeCatalogTest {
      * name typo in a hand-written list can't hide one. Other OpModes added to TeamCode later
      * are fine: this only checks that these are there. Update the list when one is renamed or
      * removed (Pedro 3 removed {@code TeamAPedroTuning} and added {@code KimCode/TeleopV1}; the team
-     * later moved TeleopV1 to the top package with no name or group, and added {@code SimpleLeave}).</p>
+     * later moved TeleopV1 to the top package with no name or group, and added {@code SimpleLeave}; since the
+     * Pedro 3 merge c554aa9 both are in {@code KimCode/KimKimCode}).</p>
      */
     @Test
     void findsEveryTeamCodeOpModeWithItsNameGroupAndPeriod() {
@@ -57,12 +58,14 @@ class OpModeCatalogTest {
                 teleOp("testing.TeamAAprilTagVisionTestOpMode", "Team A AprilTag Vision Test", "Testing"),
                 teleOp("testing.TeamACameraCalibrationCaptureOpMode", "Team A Camera Calibration Capture", "Testing"),
                 teleOp("testing.TeamAPedroDiagnostic", "Team A Pedro Diagnostic", "Testing"),
+                new OpModeCatalog.Entry(TEAM_CODE + ".KimCode.KimKimCode.TeleopV1", "TeleopV1", "", MatchPeriod.TELEOP, ""),
+                new OpModeCatalog.Entry(TEAM_CODE + ".KimCode.KimKimCode.SimpleLeave", "SimpleLeave", "KimCode",
+                        MatchPeriod.AUTONOMOUS, ""),
                 autonomous("autonomous.TeamAAutoOpMode", "Team A Autonomous Demo", "Team A"),
                 autonomous("autonomous.TeamAPedroPilotAutoOpMode", "Team A Pedro Paths", "Team A Testing"));
         List<OpModeCatalog.Entry> missing = expected.stream().filter(e -> !found.contains(e)).toList();
         assertEquals(List.of(), missing, "OpModes missing or listed differently. Found:\n  "
                 + found.stream().map(OpModeCatalog.Entry::toString).collect(Collectors.joining("\n  ")));
-        assertTrue(found.stream().anyMatch(e -> e.simpleName().equals("TeleopV1")), "TeleopV1 found in " + found);
     }
 
     /**

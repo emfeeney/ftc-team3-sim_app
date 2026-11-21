@@ -269,10 +269,10 @@ class BridgeSessionTest {
         Map<String, Object> frame = send("{\"type\": \"init\"}");
 
         assertEquals(List.of("type", "loop", "gamepad1Rumbles", "gamepad2Rumbles", "events", "finished", "controllers",
-                "controllerProblem", "driveCommand"),
+                "controllerProblem", "driveCommand", "pieceLaunches", "plannedPaths", "score"),
                 List.copyOf(frame.keySet()));
         assertEquals(List.of("sinceInitSeconds", "matchTimeSeconds", "stage", "pose", "motors", "servos", "autoStep",
-                "telemetry", "gamepad1", "gamepad2", "aprilTags", "pieces"), List.copyOf(loop(frame).keySet()));
+                "telemetry", "gamepad1", "gamepad2", "aprilTags", "pieces", "hives", "score"), List.copyOf(loop(frame).keySet()));
     }
 
     /**

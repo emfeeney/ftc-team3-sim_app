@@ -148,14 +148,14 @@
               <table class="cs-scouting-table">
                 <tr><th>Metric</th><th>Autonomous Performance</th></tr>
                 <tr><td><b>Starting Pose</b></td><td id="cs-scout-start">X: 0.00 in, Y: 0.00 in, Heading: 0.0°</td></tr>
-                <tr><td><b>End Pose (TeleOp Handoff)</b></td><td id="cs-scout-end">X: 24.12 in, Y: 0.00 in, Heading: 0.0°</td></tr>
+                <tr><td><b>End Pose (Auto Finish)</b></td><td id="cs-scout-end">X: 24.12 in, Y: 0.00 in, Heading: 0.0°</td></tr>
                 <tr><td><b>Total Run Time</b></td><td id="cs-scout-time">0.98 seconds (29.02s spare cycle buffer)</td></tr>
                 <tr><td><b>Expected Point Yield</b></td><td id="cs-scout-points">13 Points (High Chamber + Observation Park)</td></tr>
                 <tr><td><b>Alliance Clearance</b></td><td id="cs-scout-clearance">Confined to Audience/Alliance tile quadrant. Safe for parallel partner auto.</td></tr>
               </table>
 
               <div style="margin-top: 14px; font-size: 12px; color: #57606a; line-height: 1.5;">
-                <b>Drive Coach Notes:</b> Robot starts on tile seam facing audience wall. Immediately follows Pedro bezier curve to score specimen before parking in observation zone for teleop handoff.
+                <b>Drive Coach Notes:</b> Robot starts on tile seam facing audience wall. Immediately follows Pedro bezier curve to score specimen before parking in observation zone.
               </div>
             </div>
           </div>

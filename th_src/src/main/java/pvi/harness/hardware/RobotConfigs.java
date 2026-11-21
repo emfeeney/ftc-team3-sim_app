@@ -47,6 +47,13 @@ public final class RobotConfigs {
         for (String name : config.otherMotors()) {
             hardwareMap.addMotor(name);
         }
+        MechanismSetup mechanism = config.mechanism();
+        if (mechanism != null && mechanism.launcher() != null) {
+            MechanismSetup.Launcher launcher = mechanism.launcher();
+            hardwareMap.motor(launcher.motor())
+                    .setEncoderModel(launcher.ticksPerRev().value(), launcher.freeSpeedRpm().value())
+                    .setSpinUpSeconds(launcher.spinUpSeconds().value());
+        }
         config.servos().forEach(hardwareMap::addServo);
         config.imus().forEach(hardwareMap::addImu);
         config.crServos().forEach(hardwareMap::addCRServo);
@@ -63,6 +70,9 @@ public final class RobotConfigs {
                 webcam.seeFieldTags(config.field());   // the field's tags that are in view
             }
         }
+        // D47: a Limelight linked to a webcam sees that webcam's tags.
+        config.limelightCameras().forEach((limelight, webcam) ->
+                hardwareMap.tryGet(FakeLimelight.class, limelight).seeThrough(hardwareMap.webcam(webcam)));
         for (HarnessConfig.DeadWheel pod : config.deadWheels()) {
             hardwareMap.addDeadWheel(pod.parallel()
                     ? FakeDeadWheel.parallel(pod.port(), pod.offsetInches())

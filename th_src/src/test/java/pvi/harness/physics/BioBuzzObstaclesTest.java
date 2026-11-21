@@ -111,6 +111,7 @@ class BioBuzzObstaclesTest {
                 assertEquals(file[k], copy[k], 1e-9, id + " number " + k);
             }
             assertEquals(num(o, "bottomInches"), j.bottomInches(), 1e-9, id + " bottom");
+            assertEquals(num(o, "topInches"), j.topInches(), 1e-9, id + " top");
         }
     }
 

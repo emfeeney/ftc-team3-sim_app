@@ -22,14 +22,6 @@
   ];
 
   const PRESET_FILES = {
-    teleop: [
-      { name: "Team3TeleOp.java (Driver Controls)", path: "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/Team3TeleOp.java" },
-      { name: "RumbleDemoTeleOp.java", path: "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/RumbleDemoTeleOp.java" },
-      { name: "Team3TableTestTeleOp.java", path: "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/testing/Team3TableTestTeleOp.java" },
-      { name: "TeamATeleOp.java", path: "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/TeamATeleOp.java" },
-      { name: "TeamBTeleOp.java", path: "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/TeamBTeleOp.java" },
-      { name: "TeamCTeleOp.java", path: "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/TeamCTeleOp.java" }
-    ],
     autonomous: [
       { name: "Team3PedroPilotAutoOpMode.java (Pedro Pathing)", path: "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3PedroPilotAutoOpMode.java" },
       { name: "Team3AutoOpMode.java (State Machine Auto)", path: "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutoOpMode.java" },
@@ -51,8 +43,8 @@
   };
 
   let currentBranch = DEFAULT_BRANCH;
-  let currentCategory = "teleop";
-  let currentFilePath = PRESET_FILES.teleop[0].path;
+  let currentCategory = "autonomous";
+  let currentFilePath = PRESET_FILES.autonomous[0].path;
   let dynamicAllFiles = [];
   let currentFileCode = "";
 
@@ -98,8 +90,7 @@
 
         <div class="ci-nav-bar">
           <div class="ci-tabs">
-            <button class="ci-tab active" data-cat="teleop">🎮 TeleOp</button>
-            <button class="ci-tab" data-cat="autonomous">🤖 Autonomous</button>
+            <button class="ci-tab active" data-cat="autonomous">🤖 Autonomous</button>
             <button class="ci-tab" data-cat="subsystems">⚙️ Subsystems</button>
             <button class="ci-tab" data-cat="all">📂 All Files</button>
           </div>
@@ -218,7 +209,6 @@
     let fileList = [];
     if (currentCategory === "all") {
       fileList = dynamicAllFiles.length > 0 ? dynamicAllFiles : [
-        ...PRESET_FILES.teleop,
         ...PRESET_FILES.autonomous,
         ...PRESET_FILES.subsystems
       ];
@@ -356,8 +346,6 @@
       // Match category
       if (PRESET_FILES.autonomous.some((f) => f.path === requestedFilePath)) {
         currentCategory = "autonomous";
-      } else if (PRESET_FILES.teleop.some((f) => f.path === requestedFilePath)) {
-        currentCategory = "teleop";
       } else if (PRESET_FILES.subsystems.some((f) => f.path === requestedFilePath)) {
         currentCategory = "subsystems";
       } else {

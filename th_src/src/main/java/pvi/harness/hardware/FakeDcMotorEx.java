@@ -26,6 +26,9 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
  * The motor's numbers are placeholders (a goBILDA 5203 312 RPM motor) until the team gives
  * real ones; change them per motor with {@link #setEncoderModel(double, double)}.</p>
  *
+ * <p><b>Spin-up.</b> A motor changes speed at once unless {@link #setSpinUpSeconds(double)} says
+ * otherwise, as for a heavy launcher wheel, which also slows when it fires ({@link #loseSpeed}).</p>
+ *
  * <p>It implements the SDK's {@code DcMotorEx} interface, so TeamCode can't tell it apart
  * from a real motor: {@code hardwareMap.get(DcMotorEx.class, "frontLeft")} returns one of
  * these during tests.</p>
@@ -64,6 +67,8 @@ public class FakeDcMotorEx implements DcMotorEx {
     private double ticksPerRev = PLACEHOLDER_TICKS_PER_REV;
     /** Encoder speed at full power, in ticks per second. */
     private double fullSpeedTicksPerSecond = FULL_SPEED_TICKS_PER_SECOND;
+    /** How long this motor takes to get 63% of the way to a new speed; 0 means at once. */
+    private double spinUpSeconds;
     /** Encoder reading in ticks, kept exact so slow motors still count up. */
     private double exactPosition;
     /** Encoder reading in ticks, as getCurrentPosition() reports it. */
@@ -145,6 +150,26 @@ public class FakeDcMotorEx implements DcMotorEx {
         return this;
     }
 
+    /**
+     * Makes this motor take time to change speed: it gets 63% of the way to a new speed in this many
+     * seconds (0 means at once, the default). For a heavy wheel on a light motor, such as a launcher.
+     */
+    public FakeDcMotorEx setSpinUpSeconds(double seconds) {
+        if (!(seconds >= 0)) {
+            throw new IllegalArgumentException("A spin-up time can't be negative: " + seconds);
+        }
+        this.spinUpSeconds = seconds;
+        return this;
+    }
+
+    /** Takes this share (0 to 1) of the motor's speed away at once, as firing a ball does to a launcher wheel. */
+    public void loseSpeed(double share) {
+        if (!(share >= 0 && share <= 1)) {
+            throw new IllegalArgumentException("A share of the speed must be between 0 and 1: " + share);
+        }
+        velocityTicksPerSecond *= 1 - share;
+    }
+
     /** Encoder speed at full power, in ticks per second. */
     public double fullSpeedTicksPerSecond() {
         return fullSpeedTicksPerSecond;
@@ -190,6 +215,9 @@ public class FakeDcMotorEx implements DcMotorEx {
         }
         if (miswired && mode != RunMode.RUN_TO_POSITION) {
             speed = -speed;   // the motor turns the other way; the encoder wires weren't swapped
+        }
+        if (spinUpSeconds > 0 && seconds > 0 && mode != RunMode.RUN_TO_POSITION) {
+            speed = velocityTicksPerSecond + (speed - velocityTicksPerSecond) * (1 - Math.exp(-seconds / spinUpSeconds));
         }
         exactPosition += speed * seconds;
         currentPosition = (int) Math.round(exactPosition);

@@ -7,8 +7,10 @@ import pvi.harness.ds.RumbleRecord;
 import pvi.harness.hardware.CameraSetup;
 import pvi.harness.physics.DriveModel;
 import pvi.harness.physics.GamePiece;
+import pvi.harness.physics.HiveTilt;
 import pvi.harness.physics.ModelValue;
 import pvi.harness.physics.Pose;
+import pvi.harness.scoring.MatchScore;
 
 /**
  * Everything that happened in one harness run, one entry per OpMode call, as plain data.
@@ -25,19 +27,28 @@ import pvi.harness.physics.Pose;
  * @param loops           one entry per OpMode call (init, each init_loop, start, each loop, stop), oldest first
  * @param gamepad1Rumbles rumble commands sent to the driver's gamepad, oldest first
  * @param gamepad2Rumbles rumble commands sent to the operator's gamepad, oldest first
+ * @param events          marked moments, oldest first
+ * @param plannedPaths    a Pedro robot's planned path each time it changed, oldest first (D39); empty for a
+ *                        robot without Pedro
+ * @param score           the final match points, after the pieces came to rest following STOP (D50); null in a
+ *                        file older than version 8
  */
 public record RunRecording(Header header, List<LoopRecord> loops,
                            List<RumbleRecord> gamepad1Rumbles, List<RumbleRecord> gamepad2Rumbles,
-                           List<Event> events) {
+                           List<Event> events, List<PlannedPath> plannedPaths, MatchScore score) {
 
     /**
      * Format version. Raise it (and update the README) whenever any field changes.
      * Version 2 added {@link #events()}; version 3 added {@link LoopRecord#aprilTags()}; version 4
      * added the game pieces ({@link Header#pieces()} and {@link LoopRecord#pieces()}); version 5
-     * added the webcams ({@link Header#cameras()}) and the field's id ({@link Header#field()}). Older files still load (with no events, no
-     * tags, no pieces, or no cameras).
+     * added the webcams ({@link Header#cameras()}) and the field's id ({@link Header#field()}); version 6
+     * added each HIVE's tips and swing ({@link Header#hives()}, {@link LoopRecord#hives()}), and from version 6 a
+     * {@code "cell"} ball's position is where it really is, moving as its HIVE tips. Older files still
+     * load (with no events, no tags, no pieces, no cameras, or no HIVEs). Version 7 added a Pedro robot's
+     * planned paths ({@link #plannedPaths()}, D39); older files have none. Version 8 added the match points
+     * ({@link #score()} at the end and {@link LoopRecord#score()} each loop, D50); older files have none (null).
      */
-    public static final int VERSION = 5;
+    public static final int VERSION = 8;
 
     /** Copies the lists, so the recording can't change after it is made. */
     public RunRecording {
@@ -48,6 +59,20 @@ public record RunRecording(Header header, List<LoopRecord> loops,
         gamepad1Rumbles = List.copyOf(gamepad1Rumbles);
         gamepad2Rumbles = List.copyOf(gamepad2Rumbles);
         events = List.copyOf(events);
+        plannedPaths = List.copyOf(plannedPaths);
+    }
+
+    /** A recording with no final score (a file older than version 8). */
+    public RunRecording(Header header, List<LoopRecord> loops,
+                        List<RumbleRecord> gamepad1Rumbles, List<RumbleRecord> gamepad2Rumbles, List<Event> events,
+                        List<PlannedPath> plannedPaths) {
+        this(header, loops, gamepad1Rumbles, gamepad2Rumbles, events, plannedPaths, null);
+    }
+
+    /** A recording with no planned paths (a robot without Pedro, or a file older than version 7). */
+    public RunRecording(Header header, List<LoopRecord> loops,
+                        List<RumbleRecord> gamepad1Rumbles, List<RumbleRecord> gamepad2Rumbles, List<Event> events) {
+        this(header, loops, gamepad1Rumbles, gamepad2Rumbles, events, List.of());
     }
 
     /** A recording with no events. */
@@ -94,12 +119,22 @@ public record RunRecording(Header header, List<LoopRecord> loops,
     public record Header(int version, String distanceUnit, String angleUnit, String timeUnit,
                          String robotConfig, String opMode, MatchPeriod period, double loopPeriodSeconds,
                          Pose startPose, DriveModelValues driveModel, List<GamePiece> pieces,
-                         List<CameraSetup> cameras, String field) {
+                         List<CameraSetup> cameras, String field, List<HiveTilt> hives) {
 
         /** Copies the lists, so the header can't change after it is made. */
         public Header {
             pieces = List.copyOf(pieces);
             cameras = List.copyOf(cameras);
+            hives = List.copyOf(hives);
+        }
+
+        /** A header with no HIVEs. */
+        public Header(int version, String distanceUnit, String angleUnit, String timeUnit,
+                      String robotConfig, String opMode, MatchPeriod period, double loopPeriodSeconds,
+                      Pose startPose, DriveModelValues driveModel, List<GamePiece> pieces,
+                      List<CameraSetup> cameras, String field) {
+            this(version, distanceUnit, angleUnit, timeUnit, robotConfig, opMode, period, loopPeriodSeconds,
+                    startPose, driveModel, pieces, cameras, field, List.of());
         }
 
         /** A header with no cameras and no field. */
@@ -166,12 +201,15 @@ public record RunRecording(Header header, List<LoopRecord> loops,
      * @param pieces           the game pieces that moved or changed state since the previous loop
      *                         entry (or since the header's list, for the first entry), where they
      *                         are now; empty if none did. Pieces keep the header's order.
+     * @param hives            each HIVE's tips and swing now
+     * @param score            the match points as they stand after this call (not settled; D50), or null in a file
+     *                         older than version 8
      */
     public record LoopRecord(double sinceInitSeconds, double matchTimeSeconds, RunResult.Stage stage,
                              Pose pose, List<MotorState> motors, List<ServoState> servos,
                              String autoStep, List<TelemetryScreen> telemetry,
                              GamepadState gamepad1, GamepadState gamepad2, List<AprilTagState> aprilTags,
-                             List<GamePiece> pieces) {
+                             List<GamePiece> pieces, List<HiveTilt> hives, MatchScore score) {
 
         /** Copies the lists, so the record can't change after it is made. */
         public LoopRecord {
@@ -180,6 +218,27 @@ public record RunRecording(Header header, List<LoopRecord> loops,
             telemetry = List.copyOf(telemetry);
             aprilTags = List.copyOf(aprilTags);
             pieces = List.copyOf(pieces);
+            hives = List.copyOf(hives);
+        }
+
+        /** A loop entry with no score (a file older than version 8). */
+        public LoopRecord(double sinceInitSeconds, double matchTimeSeconds, RunResult.Stage stage,
+                          Pose pose, List<MotorState> motors, List<ServoState> servos,
+                          String autoStep, List<TelemetryScreen> telemetry,
+                          GamepadState gamepad1, GamepadState gamepad2, List<AprilTagState> aprilTags,
+                          List<GamePiece> pieces, List<HiveTilt> hives) {
+            this(sinceInitSeconds, matchTimeSeconds, stage, pose, motors, servos, autoStep, telemetry,
+                    gamepad1, gamepad2, aprilTags, pieces, hives, null);
+        }
+
+        /** A loop entry with no HIVEs. */
+        public LoopRecord(double sinceInitSeconds, double matchTimeSeconds, RunResult.Stage stage,
+                          Pose pose, List<MotorState> motors, List<ServoState> servos,
+                          String autoStep, List<TelemetryScreen> telemetry,
+                          GamepadState gamepad1, GamepadState gamepad2, List<AprilTagState> aprilTags,
+                          List<GamePiece> pieces) {
+            this(sinceInitSeconds, matchTimeSeconds, stage, pose, motors, servos, autoStep, telemetry,
+                    gamepad1, gamepad2, aprilTags, pieces, List.of());
         }
 
         /** A loop entry in which no game piece moved. */
