@@ -309,27 +309,7 @@
   padding: 8px 10px;
 }
 
-/* Buttons in controls */
-.comp-suite-btn {
-  background: linear-gradient(180deg, #1f6feb 0%, #1a56b0 100%);
-  color: #ffffff !important;
-  border: 1px solid #388bfd !important;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.comp-suite-btn:hover {
-  background: #238636 !important;
-  border-color: #2ea043 !important;
-}
-
+/* Action buttons inside Competition Suite */
 .cs-action-btn {
   background: #21262d;
   color: #c9d1d9;

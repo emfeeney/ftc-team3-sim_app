@@ -22,9 +22,9 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #090c10;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #e6edf3;
+      background: #05070a;
+      font-family: "Bahnschrift", "DIN Alternate", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #e2e8f0;
     }
     #app-container {
       display: flex;
@@ -32,122 +32,211 @@
       width: 100vw;
       height: 100vh;
     }
+    /* Elevated Sapphire-Obsidian Web Command Deck separated by a crisp cyan telemetry seam */
     #top-bar {
-      height: 56px;
-      background: #161b22;
-      border-bottom: 1px solid #30363d;
+      height: 46px;
+      background: linear-gradient(180deg, #0d1522 0%, #070b11 100%);
+      border-bottom: 1px solid rgba(56, 189, 248, 0.34);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 4px 16px rgba(0, 0, 0, 0.85), 0 1px 0 rgba(56, 189, 248, 0.14);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 18px;
-      z-index: 10;
+      padding: 0 14px;
+      z-index: 20;
       flex-shrink: 0;
+      position: relative;
     }
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-weight: 600;
-      font-size: 15px;
-      letter-spacing: 0.5px;
+      gap: 9px;
       white-space: nowrap;
       flex-shrink: 0;
-      margin-right: 16px;
+      margin-right: 12px;
     }
-    /* Status tag, not a button: tinted text with no solid fill or border */
-    .badge {
-      background: rgba(35, 134, 54, 0.15);
-      color: #3fb950;
-      font-size: 10.5px;
+    .brand-bar {
+      width: 3px;
+      height: 20px;
+      background: #38bdf8;
+      border-radius: 1px;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.55);
+      flex-shrink: 0;
+    }
+    .brand-title {
       font-weight: 700;
-      letter-spacing: 0.6px;
-      padding: 2px 7px;
-      border-radius: 3px;
+      font-size: 13.5px;
+      letter-spacing: 1.5px;
       text-transform: uppercase;
+      color: #f8fafc;
+    }
+    .deck-tag {
+      font-family: "Consolas", "SF Mono", ui-monospace, monospace;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.09);
+      border: 1px solid rgba(56, 189, 248, 0.36);
+      padding: 2px 6px;
+      border-radius: 2px;
+      user-select: none;
+    }
+    .badge {
+      font-family: "Consolas", "SF Mono", ui-monospace, monospace;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid #1e293b;
+      color: #94a3b8;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.4px;
+      padding: 2px 7px;
+      border-radius: 2px;
+      max-width: 185px;
+      overflow: hidden;
+      text-overflow: ellipsis;
       cursor: default;
       user-select: none;
     }
     .controls {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
       flex-wrap: nowrap;
       white-space: nowrap;
       min-width: 0;
     }
-    /* Caption + its dropdown read as one unit */
+    /* Recessed Instrument Selector Pod: Label + Select inside one crisp frame */
     .ctl-group {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      height: 28px;
+      background: #05080d;
+      border: 1px solid #1e293b;
+      border-radius: 3px;
+      overflow: hidden;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .ctl-group:hover,
+    .ctl-group:focus-within {
+      border-color: rgba(56, 189, 248, 0.65);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.14);
     }
     .ctl-label {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.6px;
+      font-family: "Consolas", "SF Mono", ui-monospace, monospace;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.9px;
       text-transform: uppercase;
-      color: #7d8590;
+      color: #64748b;
+      padding: 0 8px;
+      height: 100%;
+      display: inline-flex;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.65);
+      border-right: 1px solid #162030;
       cursor: default;
       user-select: none;
     }
+    .ctl-group select {
+      background: transparent;
+      color: #e2e8f0;
+      border: none;
+      border-radius: 0;
+      height: 100%;
+      padding: 0 8px;
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 11.5px;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+    }
+    .ctl-group select option,
+    .ctl-group select optgroup {
+      background: #0b111a;
+      color: #e2e8f0;
+    }
     .ctl-divider {
       width: 1px;
-      height: 22px;
-      background: #30363d;
-      margin: 0 6px;
+      height: 20px;
+      background: linear-gradient(180deg, transparent, #253247, transparent);
+      margin: 0 4px;
       flex-shrink: 0;
     }
-    select, button, .file-btn {
-      background: #21262d;
-      color: #c9d1d9;
-      border: 1px solid #363b42;
-      border-radius: 6px;
-      height: 30px;
-      padding: 0 9px;
-      font-size: 12px;
-      font-weight: 500;
+    button, .file-btn {
+      background: #0e141f;
+      color: #cbd5e1;
+      border: 1px solid #253247;
+      border-radius: 3px;
+      height: 28px;
+      padding: 0 10px;
+      font-family: "Bahnschrift", "Segoe UI", sans-serif;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       white-space: nowrap;
       flex-shrink: 0;
-      transition: all 0.15s ease;
+      transition: all 0.14s ease;
     }
-    .brand .badge { display: none; }
-    #team-select { max-width: 190px; }
-    #recording-select { max-width: 220px; }
-    #scale-select { max-width: 120px; }
-    /* Narrow windows: drop captions and secondary words so nothing overflows */
-    @media (max-width: 1480px) {
-      .ctl-label { display: none; }
-      #team-select { max-width: 170px; }
-      #recording-select { max-width: 195px; }
+    button svg, .file-btn svg {
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
     }
-    @media (max-width: 1260px) {
-      .btn-text-optional { display: none; }
-      #team-select { max-width: 150px; }
-      #recording-select { max-width: 175px; }
-    }
-    select:hover, button:hover, .file-btn:hover {
-      background: #30363d;
-      border-color: #8b949e;
-      color: #f0f6fc;
+    button:hover, .file-btn:hover {
+      background: #172132;
+      border-color: #475569;
+      color: #f8fafc;
     }
     .start-pose-btn {
-      background: linear-gradient(135deg, rgba(88, 166, 255, 0.15), rgba(56, 139, 253, 0.25));
-      border: 1px solid #388bfd;
-      color: #79c0ff;
-      font-weight: 600;
+      background: rgba(56, 189, 248, 0.08);
+      border-color: rgba(56, 189, 248, 0.42);
+      color: #7dd3fc;
     }
     .start-pose-btn:hover {
-      background: linear-gradient(135deg, rgba(88, 166, 255, 0.3), rgba(56, 139, 253, 0.45));
-      border-color: #58a6ff;
+      background: rgba(56, 189, 248, 0.18);
+      border-color: #38bdf8;
       color: #ffffff;
     }
-    select {
-      max-width: 360px;
-      outline: none;
+    .comp-suite-btn {
+      background: rgba(245, 158, 11, 0.08);
+      border-color: rgba(245, 158, 11, 0.42);
+      color: #fcd34d;
+    }
+    .comp-suite-btn:hover {
+      background: rgba(245, 158, 11, 0.18);
+      border-color: #f59e0b;
+      color: #ffffff;
+    }
+    .code-inspector-btn {
+      background: rgba(129, 140, 248, 0.09);
+      border-color: rgba(129, 140, 248, 0.42);
+      color: #a5b4fc;
+    }
+    .code-inspector-btn:hover {
+      background: rgba(129, 140, 248, 0.2);
+      border-color: #818cf8;
+      color: #ffffff;
+    }
+    #team-select { max-width: 185px; }
+    #recording-select { max-width: 215px; }
+    #scale-select { max-width: 122px; }
+    @media (max-width: 1580px) {
+      .badge { display: none; }
+    }
+    @media (max-width: 1360px) {
+      #team-select { max-width: 150px; }
+      #recording-select { max-width: 175px; }
+      .ctl-label { padding: 0 6px; font-size: 9px; }
+    }
+    @media (max-width: 1220px) {
+      .ctl-label { display: none; }
+      .btn-text-optional { display: none; }
     }
     #viewport-container {
       flex: 1;
@@ -163,7 +252,7 @@
     #loading-overlay {
       position: absolute;
       inset: 0;
-      background: #090c10;
+      background: #05070a;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -179,8 +268,8 @@
     .spinner {
       width: 44px;
       height: 44px;
-      border: 3px solid #21262d;
-      border-top-color: #58a6ff;
+      border: 3px solid #162030;
+      border-top-color: #38bdf8;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -189,33 +278,37 @@
     }
     .progress-bar-bg {
       width: 260px;
-      height: 6px;
-      background: #21262d;
-      border-radius: 3px;
+      height: 5px;
+      background: #111827;
+      border: 1px solid #1e293b;
+      border-radius: 2px;
       overflow: hidden;
     }
     #progress-fill {
       width: 0%;
       height: 100%;
-      background: #238636;
+      background: #38bdf8;
       transition: width 0.2s ease;
     }
     #status-text {
-      font-size: 13px;
-      color: #8b949e;
+      font-family: "Consolas", "SF Mono", ui-monospace, monospace;
+      font-size: 12px;
+      color: #64748b;
     }
     #drop-hint {
       position: absolute;
       inset: 20px;
-      border: 2px dashed #58a6ff;
-      border-radius: 12px;
-      background: rgba(88, 166, 255, 0.08);
+      border: 2px dashed #38bdf8;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.07);
       display: none;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 600;
-      color: #58a6ff;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #7dd3fc;
       pointer-events: none;
       z-index: 40;
     }
@@ -225,28 +318,30 @@
   <div id="app-container">
     <div id="top-bar">
       <div class="brand">
-        <span>VI_Arena 3D</span>
-        <span class="badge" id="team-badge">Team 3 WebGL</span>
+        <span class="brand-bar" aria-hidden="true"></span>
+        <span class="brand-title">VI_Arena</span>
+        <span class="deck-tag">Web Deck</span>
+        <span class="badge" id="team-badge">feature/team-3-setup</span>
       </div>
 
       <div class="controls">
-        <div class="ctl-group">
+        <div class="ctl-group" title="GitHub branch from PVI-FTC/ftc-robot-framework">
           <label for="team-select" class="ctl-label">Branch</label>
-          <select id="team-select" title="GitHub branch from PVI-FTC/ftc-robot-framework">
+          <select id="team-select">
             <option value="">Loading branches...</option>
           </select>
         </div>
 
-        <div class="ctl-group">
+        <div class="ctl-group" title="Autonomous run to replay">
           <label for="recording-select" class="ctl-label">Auto</label>
-          <select id="recording-select" title="Autonomous run to replay">
+          <select id="recording-select">
             <option value="">Loading runs...</option>
           </select>
         </div>
 
-        <div class="ctl-group">
+        <div class="ctl-group" title="Simulation UI scale">
           <label for="scale-select" class="ctl-label">Zoom</label>
-          <select id="scale-select" title="Simulation UI scale">
+          <select id="scale-select">
             <option value="large" selected>Large (150%)</option>
             <option value="medium">Medium (125%)</option>
             <option value="compact">Compact (100%)</option>
@@ -257,14 +352,30 @@
         <span class="ctl-divider" aria-hidden="true"></span>
 
         <label class="file-btn" title="Open a .json recording from your computer">
-          📂 <span class="btn-text-optional">Load JSON</span>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10V3M5 6l3-3 3 3M2.5 11.5v1.5a1 1 0 001 1h9a1 1 0 001-1v-1.5"/></svg>
+          <span class="btn-text-optional">Load JSON</span>
           <input type="file" id="file-input" accept=".json" style="display: none;">
         </label>
 
-        <button id="btn-start-pose" class="start-pose-btn" onclick="openStartPoseModal()" title="Place robot at custom position and heading before autonomous">🎯 <span class="btn-text-optional">Start Pose</span></button>
-        <button id="btn-comp-suite" class="comp-suite-btn" onclick="openCompetitionSuite()" title="Match preparation and competition tools">🏆 Match Strategy</button>
-        <button id="btn-view-code" class="code-inspector-btn" onclick="openCurrentOpModeCode()" title="View robot source code from GitHub branches">💻 Robot Code</button>
-        <button id="btn-fullscreen" title="Fullscreen">⛶ <span class="btn-text-optional">Fullscreen</span></button>
+        <button id="btn-start-pose" class="start-pose-btn" onclick="openStartPoseModal()" title="Place robot at custom position and heading before autonomous">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/></svg>
+          <span class="btn-text-optional">Start Pose</span>
+        </button>
+
+        <button id="btn-comp-suite" class="comp-suite-btn" onclick="openCompetitionSuite()" title="BIOBUZZ 2026 match preparation and telemetry analysis">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13.5h12M3.5 11V7.5M8 11V4M12.5 11V6"/></svg>
+          <span>Match Strategy</span>
+        </button>
+
+        <button id="btn-view-code" class="code-inspector-btn" onclick="openCurrentOpModeCode()" title="Inspect Java OpMode source code from GitHub branches">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5M9 3l-2 10"/></svg>
+          <span>Robot Code</span>
+        </button>
+
+        <button id="btn-fullscreen" title="Toggle Fullscreen">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg>
+          <span class="btn-text-optional">Fullscreen</span>
+        </button>
       </div>
     </div>
 

@@ -360,16 +360,3 @@ pre[class*="language-"] {
 code[class*="language-"] {
   font-family: inherit !important;
 }
-
-/* Code Inspector Trigger Button */
-.code-inspector-btn {
-  background: #1f6feb !important;
-  border-color: #388bfd !important;
-  color: #ffffff !important;
-  font-weight: 600 !important;
-}
-
-.code-inspector-btn:hover {
-  background: #388bfd !important;
-  color: #ffffff !important;
-}
