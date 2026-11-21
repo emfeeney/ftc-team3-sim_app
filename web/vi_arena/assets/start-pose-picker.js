@@ -579,21 +579,66 @@
       const cosD = Math.cos(dTheta);
       const sinD = Math.sin(dTheta);
 
+      const transformPoint = (x, y) => {
+        const relX = Number(x) - origX;
+        const relY = Number(y) - origY;
+        return [
+          targetX + (relX * cosD - relY * sinD),
+          targetY + (relX * sinD + relY * cosD)
+        ];
+      };
+
       simData.header.startPose = {
         xInches: targetX,
         yInches: targetY,
         headingRadians: targetTheta
       };
 
+      if (Array.isArray(simData.header.pieces)) {
+        for (const piece of simData.header.pieces) {
+          if (piece && piece.state === "held" && piece.xInches != null && piece.yInches != null) {
+            const [nx, ny] = transformPoint(piece.xInches, piece.yInches);
+            piece.xInches = nx;
+            piece.yInches = ny;
+          }
+        }
+      }
+
+      if (Array.isArray(simData.plannedPaths)) {
+        for (const plan of simData.plannedPaths) {
+          if (!plan || !Array.isArray(plan.points)) continue;
+          plan.points = plan.points.map(pt => {
+            if (Array.isArray(pt) && pt.length >= 2) {
+              return transformPoint(pt[0], pt[1]);
+            }
+            if (pt && pt.xInches != null && pt.yInches != null) {
+              const [nx, ny] = transformPoint(pt.xInches, pt.yInches);
+              return { ...pt, xInches: nx, yInches: ny };
+            }
+            return pt;
+          });
+        }
+      }
+
       for (let i = 0; i < simData.loops.length; i++) {
-        const pose = simData.loops[i]?.pose;
-        if (!pose || pose.xInches == null || pose.yInches == null) continue;
-        const relX = Number(pose.xInches) - origX;
-        const relY = Number(pose.yInches) - origY;
-        pose.xInches = targetX + (relX * cosD - relY * sinD);
-        pose.yInches = targetY + (relX * sinD + relY * cosD);
-        if (pose.headingRadians != null) {
-          pose.headingRadians = Number(pose.headingRadians) + dTheta;
+        const loop = simData.loops[i];
+        const pose = loop?.pose;
+        if (pose && pose.xInches != null && pose.yInches != null) {
+          const [nx, ny] = transformPoint(pose.xInches, pose.yInches);
+          pose.xInches = nx;
+          pose.yInches = ny;
+          if (pose.headingRadians != null) {
+            pose.headingRadians = Number(pose.headingRadians) + dTheta;
+          }
+        }
+        if (Array.isArray(loop?.pieces)) {
+          for (const piece of loop.pieces) {
+            if (piece && piece.state === "held" && piece.xInches != null && piece.yInches != null) {
+              const [nx, ny] = transformPoint(piece.xInches, piece.yInches);
+              piece.xInches = nx;
+              piece.yInches = ny;
+            }
+          }
         }
       }
 

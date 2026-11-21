@@ -1,12 +1,264 @@
 /**
- * FTC Competition & Match Strategy Suite
- * Real-world match preparation: Point breakdown, Alliance collision check,
- * Stress testing, Match timeline, and Pit scouting sheet.
+ * FTC BIOBUZZ 2026 Match Strategy & Competition Suite
+ * Reads real format-v8 recordings (score, hives, pieces, plannedPaths, events, autoStep)
+ * directly from the active branch / Emscripten virtual cache or manifest branches.
  */
 (function () {
   let modal = null;
   let currentRecordingData = null;
-  let partnerRecordingData = null;
+  let currentRunMeta = { branch: "feature/team-3-setup", opMode: "AutoOpMode", label: "Auto" };
+  let computedRunStats = null;
+
+  function escapeHtml(str) {
+    return String(str == null ? "" : str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function decodeRecordingFromCache(vPath) {
+    if (!vPath || !window.virtualFileCache) return null;
+    const bytes = window.virtualFileCache.get(vPath);
+    if (!bytes) return null;
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+
+  function branchFolder(info) {
+    return info && info.folder && info.folder !== "." ? info.folder + "/" : "";
+  }
+
+  function inferAlliance(data) {
+    const score = data?.score || data?.loops?.[data.loops.length - 1]?.score;
+    if (score?.robotAlliance === "red" || score?.robotAlliance === "blue") {
+      return score.robotAlliance;
+    }
+    const redPts = score?.red?.total || 0;
+    const bluePts = score?.blue?.total || 0;
+    if (redPts !== bluePts) return redPts > bluePts ? "red" : "blue";
+    const startY = data?.header?.startPose?.yInches;
+    if (typeof startY === "number" && startY !== 0) {
+      return startY < 0 ? "red" : "blue";
+    }
+    const name = (data?.header?.opMode || "").toLowerCase();
+    if (name.includes("blue")) return "blue";
+    if (name.includes("red")) return "red";
+    return "red";
+  }
+
+  function extractRunStats(data) {
+    const loops = data?.loops || [];
+    const header = data?.header || {};
+    const firstPose = header.startPose || loops[0]?.pose || { xInches: 0, yInches: 0, headingRadians: 0 };
+    const lastLoop = loops[loops.length - 1] || {};
+    const lastPose = lastLoop.pose || firstPose;
+
+    let totalDistInches = 0;
+    let totalTurnDeg = 0;
+    let maxSpeedInPerSec = 0;
+    let maxSpeedTime = 0;
+    let activeEndSeconds = 0;
+    let totalDurationSeconds = 0;
+    let launchedBallIds = new Set();
+    let aprilTagFrames = 0;
+    let hasLauncherActivity = false;
+
+    for (let i = 0; i < loops.length; i++) {
+      const l = loops[i];
+      const mt = typeof l.matchTimeSeconds === "number" ? l.matchTimeSeconds : (l.sinceInitSeconds || 0);
+      if (mt > totalDurationSeconds) totalDurationSeconds = mt;
+      if ((l.aprilTags || []).length > 0) aprilTagFrames++;
+
+      for (const p of l.pieces || []) {
+        if (p.state === "flying" && p.id && !p.id.includes("-nectar-cell-")) {
+          launchedBallIds.add(p.id);
+        }
+      }
+
+      const motorsMoving = (l.motors || []).some(m => Math.abs(m.power || 0) > 0.02);
+      if (motorsMoving && mt > activeEndSeconds) activeEndSeconds = mt;
+
+      if (i > 0 && loops[i - 1].pose && l.pose) {
+        const p0 = loops[i - 1].pose;
+        const p1 = l.pose;
+        const dx = (p1.xInches || 0) - (p0.xInches || 0);
+        const dy = (p1.yInches || 0) - (p0.yInches || 0);
+        const step = Math.hypot(dx, dy);
+        totalDistInches += step;
+
+        const dh = Math.atan2(
+          Math.sin((p1.headingRadians || 0) - (p0.headingRadians || 0)),
+          Math.cos((p1.headingRadians || 0) - (p0.headingRadians || 0))
+        );
+        totalTurnDeg += Math.abs((dh * 180) / Math.PI);
+
+        if (step > 0.02 || Math.abs(dh) > 0.002) {
+          if (mt > activeEndSeconds) activeEndSeconds = mt;
+        }
+
+        const dt = (l.sinceInitSeconds || 0) - (loops[i - 1].sinceInitSeconds || 0);
+        if (dt > 0.001) {
+          const spd = step / dt;
+          if (spd > maxSpeedInPerSec) {
+            maxSpeedInPerSec = spd;
+            maxSpeedTime = mt;
+          }
+        }
+      }
+
+      if ((l.motors || []).some(m => /outtake|launcher|pollen/i.test(m.name) && Math.abs(m.power || 0) > 0.1)) {
+        hasLauncherActivity = true;
+      }
+    }
+
+    const runEnd = totalDurationSeconds > 0 ? Math.min(30.0, totalDurationSeconds) : 30.0;
+    const effectiveEnd = activeEndSeconds > 0 ? Math.min(30.0, activeEndSeconds) : 0.0;
+    const spareBuffer = Math.max(0, 30.0 - effectiveEnd);
+
+    const dispInches = Math.hypot(
+      (lastPose.xInches || 0) - (firstPose.xInches || 0),
+      (lastPose.yInches || 0) - (firstPose.yInches || 0)
+    );
+
+    const scoreObj = data.score || lastLoop.score || null;
+    const alliance = inferAlliance(data);
+    const allianceScore = scoreObj ? (scoreObj[alliance] || scoreObj.red || scoreObj.blue) : null;
+    const points = allianceScore ? Number(allianceScore.total || 0) : 0;
+    const activeItems = (allianceScore?.items || []).filter(it => (it.points || 0) > 0);
+    const breakdownText = activeItems.length > 0
+      ? activeItems.map(it => `${it.name} (+${it.points})`).join(" · ")
+      : (points === 0 ? "No autonomous points scored" : `${points} BIOBUZZ pts`);
+
+    const finalHives = lastLoop.hives || header.hives || [];
+    const totalHiveTips = finalHives.reduce((acc, h) => acc + (h.tips || 0), 0);
+
+    return {
+      header,
+      firstPose,
+      lastPose,
+      effectiveEnd,
+      runEnd,
+      spareBuffer,
+      totalDistInches,
+      dispInches,
+      totalTurnDeg,
+      maxSpeedInPerSec,
+      maxSpeedFtPerSec: maxSpeedInPerSec / 12.0,
+      maxSpeedTime,
+      alliance,
+      points,
+      breakdownText,
+      activeItems,
+      totalHiveTips,
+      launchedCount: launchedBallIds.size,
+      aprilTagFrames,
+      hasLauncherActivity: hasLauncherActivity || launchedBallIds.size > 0,
+      plannedPathCount: (data.plannedPaths || []).length,
+      events: data.events || []
+    };
+  }
+
+  function buildTimelineMilestones(data, stats) {
+    const loops = data?.loops || [];
+    if (loops.length === 0) return [];
+    const milestones = [];
+    const sx = (stats.firstPose.xInches || 0).toFixed(1);
+    const sy = (stats.firstPose.yInches || 0).toFixed(1);
+    const sh = (((stats.firstPose.headingRadians || 0) * 180) / Math.PI).toFixed(0);
+    milestones.push({
+      t: 0,
+      icon: "🏁",
+      label: `Match Start (${stats.header.opMode || currentRunMeta.opMode}) at (${sx}", ${sy}", ${sh}°)`
+    });
+
+    let lastStep = null;
+    let prevLeave = 0;
+    let prevPark = 0;
+    const seenTips = new Map();
+    const seenShots = new Set();
+    const seenFlowerPulls = new Set();
+    let seenPlay = false;
+
+    for (const l of loops) {
+      const mt = typeof l.matchTimeSeconds === "number" ? l.matchTimeSeconds : 0;
+      if (l.stage === "RUN" && !seenPlay) {
+        seenPlay = true;
+        if (l.autoStep && l.autoStep !== lastStep) {
+          lastStep = l.autoStep;
+          milestones.push({ t: mt, icon: "🚀", label: `Step: ${l.autoStep}` });
+        }
+      } else if (l.stage === "RUN" && l.autoStep && l.autoStep !== lastStep) {
+        lastStep = l.autoStep;
+        milestones.push({ t: mt, icon: "📍", label: `Step: ${l.autoStep}` });
+      }
+
+      for (const p of l.pieces || []) {
+        if (p.state === "flying" && !p.id.includes("-nectar-cell-") && !seenShots.has(p.id)) {
+          seenShots.add(p.id);
+          milestones.push({ t: mt, icon: "🟡", label: `Launched ${p.id}` });
+        }
+        if (p.id && p.id.startsWith("pollen-flower-") && p.state === "held" && !seenFlowerPulls.has(p.id)) {
+          seenFlowerPulls.add(p.id);
+          milestones.push({ t: mt, icon: "🌼", label: `Extracted ${p.id} from FLOWER` });
+        }
+      }
+
+      for (const h of l.hives || []) {
+        const prev = seenTips.get(h.id) || 0;
+        if ((h.tips || 0) > prev) {
+          seenTips.set(h.id, h.tips);
+          milestones.push({
+            t: mt,
+            icon: "⚖️",
+            label: `${h.id === "red-hive" ? "Red" : "Blue"} HIVE Tip #${h.tips} triggered`
+          });
+        }
+      }
+
+      const alScore = l.score?.[stats.alliance] || l.score?.red || l.score?.blue;
+      if (alScore?.items) {
+        for (const it of alScore.items) {
+          if (it.name === "LEAVE" && it.count > prevLeave) {
+            prevLeave = it.count;
+            milestones.push({ t: mt, icon: "✅", label: `Earned LEAVE (+${it.pointsEach} pts)` });
+          } else if (it.name === "PARK" && it.count > prevPark) {
+            prevPark = it.count;
+            milestones.push({ t: mt, icon: "🅿️", label: `Entered Loading Zone — PARK (+${it.pointsEach} pts)` });
+          }
+        }
+      }
+    }
+
+    if (stats.maxSpeedFtPerSec > 0.5) {
+      milestones.push({
+        t: stats.maxSpeedTime,
+        icon: "⚡",
+        label: `Peak Velocity: ${stats.maxSpeedFtPerSec.toFixed(2)} ft/s (${stats.maxSpeedInPerSec.toFixed(1)} in/s)`
+      });
+    }
+
+    const loggedEvents = new Set();
+    for (const ev of stats.events) {
+      const mt = typeof ev.matchTimeSeconds === "number" ? ev.matchTimeSeconds : (ev.sinceInitSeconds || 0);
+      const key = `${Math.floor(mt)}_${ev.text}`;
+      if (!loggedEvents.has(key)) {
+        loggedEvents.add(key);
+        milestones.push({ t: mt, icon: "💥", label: `Collision: ${ev.text}` });
+      }
+    }
+
+    const ex = (stats.lastPose.xInches || 0).toFixed(1);
+    const ey = (stats.lastPose.yInches || 0).toFixed(1);
+    milestones.push({
+      t: stats.effectiveEnd > 0 ? stats.effectiveEnd : stats.runEnd,
+      icon: "⏹️",
+      label: `Auto Finish at (${ex}", ${ey}") — Final Score: ${stats.points} pts`
+    });
+
+    milestones.sort((a, b) => a.t - b.t);
+    return milestones.slice(0, 28);
+  }
 
   function initCompetitionSuite() {
     if (document.querySelector("#comp-suite-modal")) return;
@@ -17,7 +269,7 @@
       <div class="cs-drawer">
         <div class="cs-header">
           <div class="cs-title-group">
-            <span class="cs-title">🏆 FTC Match Strategy & Competition Suite</span>
+            <span class="cs-title">🏆 BIOBUZZ Match Strategy & Analysis Suite</span>
             <span id="cs-active-run-badge" class="cs-badge">Active: Auto</span>
           </div>
           <button class="cs-close-btn" onclick="closeCompetitionSuite()" title="Close (Esc)">✕</button>
@@ -36,41 +288,41 @@
           <div id="cs-tab-score" class="cs-tab-content active">
             <div class="cs-card">
               <div class="cs-card-header">
-                <span>Autonomous Point & Cycle Yield</span>
-                <span id="cs-score-pill" style="font-size: 13px; color: #3fb950; font-weight: 600;">Projected: 13 Pts</span>
+                <span>BIOBUZZ 2026 Autonomous Point & Cycle Yield</span>
+                <span id="cs-score-pill" style="font-size: 13px; color: #3fb950; font-weight: 600;">-- pts</span>
               </div>
               <div class="cs-metrics-grid">
                 <div class="cs-metric-box">
-                  <div class="cs-metric-label">Projected Auto Score</div>
-                  <div id="cs-metric-score" class="cs-metric-value">13 pts</div>
-                  <div class="cs-metric-sub">Specimen (10) + Park (3)</div>
+                  <div class="cs-metric-label">BIOBUZZ Auto Score</div>
+                  <div id="cs-metric-score" class="cs-metric-value">-- pts</div>
+                  <div id="cs-metric-breakdown" class="cs-metric-sub">Loading score breakdown...</div>
                 </div>
                 <div class="cs-metric-box">
-                  <div class="cs-metric-label">Execution Time</div>
-                  <div id="cs-metric-time" class="cs-metric-value">0.98 s</div>
-                  <div id="cs-metric-buffer" class="cs-metric-sub">29.02s buffer before bell</div>
+                  <div class="cs-metric-label">Active Execution Time</div>
+                  <div id="cs-metric-time" class="cs-metric-value">-- s</div>
+                  <div id="cs-metric-buffer" class="cs-metric-sub">-- s buffer before bell</div>
                 </div>
                 <div class="cs-metric-box">
                   <div class="cs-metric-label">Total Path Distance</div>
-                  <div id="cs-metric-dist" class="cs-metric-value">2.97 ft</div>
-                  <div id="cs-metric-disp" class="cs-metric-sub">2.97 ft straight-line</div>
+                  <div id="cs-metric-dist" class="cs-metric-value">-- ft</div>
+                  <div id="cs-metric-disp" class="cs-metric-sub">-- ft straight-line</div>
                 </div>
                 <div class="cs-metric-box">
                   <div class="cs-metric-label">Peak Speed Reached</div>
-                  <div id="cs-metric-speed" class="cs-metric-value">5.77 ft/s</div>
-                  <div class="cs-metric-sub">69.2 in/s (Within grip limit)</div>
+                  <div id="cs-metric-speed" class="cs-metric-value">-- ft/s</div>
+                  <div id="cs-metric-speed-sub" class="cs-metric-sub">-- in/s</div>
                 </div>
               </div>
             </div>
 
             <div class="cs-card">
-              <div class="cs-card-header">Match Time & Cycle Buffer (30.0s Total)</div>
+              <div class="cs-card-header">Match Time & Cycle Buffer (30.0s Autonomous)</div>
               <div class="cs-timeline-bar">
-                <div id="cs-time-progress" class="cs-timeline-progress" style="width: 10%;"></div>
+                <div id="cs-time-progress" class="cs-timeline-progress" style="width: 0%;"></div>
               </div>
               <div style="display: flex; justify-content: space-between; font-size: 11px; color: #8b949e; font-family: monospace;">
                 <span>0.0s START</span>
-                <span id="cs-time-finish-label">0.98s FINISH</span>
+                <span id="cs-time-finish-label">-- s ACTIVE END</span>
                 <span>30.0s AUTO BELL</span>
               </div>
             </div>
@@ -81,20 +333,16 @@
             <div class="cs-card">
               <div class="cs-card-header">
                 <span>Alliance Partner Path Collision Detector</span>
-                <span style="font-size: 12px; color: #8b949e;">Checks clearance between both 18x18 robots</span>
+                <span style="font-size: 12px; color: #8b949e;">Checks center & corner clearance between both 18x18 robots</span>
               </div>
-              <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 14px;">
+              <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
                 <label style="font-size: 13px; color: #8b949e;">Select Partner Route:</label>
-                <select id="cs-partner-select" style="background: #0d1117; border: 1px solid #30363d; color: #f0f6fc; padding: 6px 10px; border-radius: 6px; font-size: 13px;">
-                  <option value="auto-TeamAAutoOpMode.json">Team A (Autonomous Demo - Blue Right)</option>
-                  <option value="auto-Team3AutoOpMode.json">Team 3 Auto Demo (State Machine)</option>
-                  <option value="auto-Team3TempStrafeRight8AutoOpMode.json">Team 3 Strafe Right 8 in</option>
-                </select>
+                <select id="cs-partner-select" style="flex: 1; min-width: 220px; background: #0d1117; border: 1px solid #30363d; color: #f0f6fc; padding: 6px 10px; border-radius: 6px; font-size: 13px;"></select>
                 <button class="cs-action-btn primary" onclick="runCollisionAnalysis()">🔍 Check Collision</button>
               </div>
 
               <div id="cs-collision-result" class="cs-alert-box cs-alert-success">
-                <span>✅ <b>Safe Clearance Verified:</b> Minimum distance between robots is 48.2 inches at T+0.50s. No collision risk on competition tiles.</span>
+                <span>Select a partner route across any branch and click <b>Check Collision</b> to verify field clearance.</span>
               </div>
             </div>
           </div>
@@ -123,7 +371,7 @@
               </div>
 
               <div id="cs-stress-output" class="cs-alert-box cs-alert-success">
-                <span>🛡️ <b>Pedro Pathing Closed-Loop Margin:</b> At 12.5V and 100% grip, path tracking error stays under 0.25 inches. Sufficient deceleration buffer before wall boundaries.</span>
+                <span>Loading run dynamics...</span>
               </div>
             </div>
           </div>
@@ -136,26 +384,26 @@
             <div id="cs-printable-scout" class="cs-scouting-card">
               <div class="cs-scouting-header">
                 <div>
-                  <h2 id="cs-scout-team" style="margin: 0; font-size: 22px; color: #0969da;">FTC Team 3 (BioBuzz)</h2>
-                  <div id="cs-scout-route" style="color: #57606a; font-size: 14px; margin-top: 4px;">Autonomous: Team3PedroPilotAutoOpMode</div>
+                  <h2 id="cs-scout-team" style="margin: 0; font-size: 22px; color: #0969da;">FTC Robot</h2>
+                  <div id="cs-scout-route" style="color: #57606a; font-size: 14px; margin-top: 4px;">Autonomous: --</div>
                 </div>
                 <div style="text-align: right;">
-                  <span style="background: #dafbe1; color: #1a7f37; padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 13px;">INTO THE DEEP / BIOBUZZ</span>
+                  <span style="background: #dafbe1; color: #1a7f37; padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 13px;">BIOBUZZ 2026</span>
                   <div style="color: #57606a; font-size: 11px; margin-top: 4px;">Official Match Strategy Sheet</div>
                 </div>
               </div>
 
               <table class="cs-scouting-table">
                 <tr><th>Metric</th><th>Autonomous Performance</th></tr>
-                <tr><td><b>Starting Pose</b></td><td id="cs-scout-start">X: 0.00 in, Y: 0.00 in, Heading: 0.0°</td></tr>
-                <tr><td><b>End Pose (Auto Finish)</b></td><td id="cs-scout-end">X: 24.12 in, Y: 0.00 in, Heading: 0.0°</td></tr>
-                <tr><td><b>Total Run Time</b></td><td id="cs-scout-time">0.98 seconds (29.02s spare cycle buffer)</td></tr>
-                <tr><td><b>Expected Point Yield</b></td><td id="cs-scout-points">13 Points (High Chamber + Observation Park)</td></tr>
-                <tr><td><b>Alliance Clearance</b></td><td id="cs-scout-clearance">Confined to Audience/Alliance tile quadrant. Safe for parallel partner auto.</td></tr>
+                <tr><td><b>Starting Pose</b></td><td id="cs-scout-start">--</td></tr>
+                <tr><td><b>End Pose (Auto Finish)</b></td><td id="cs-scout-end">--</td></tr>
+                <tr><td><b>Active Run Time</b></td><td id="cs-scout-time">--</td></tr>
+                <tr><td><b>BIOBUZZ Auto Score</b></td><td id="cs-scout-points">--</td></tr>
+                <tr><td><b>Field Mechanics & Vision</b></td><td id="cs-scout-clearance">--</td></tr>
               </table>
 
-              <div style="margin-top: 14px; font-size: 12px; color: #57606a; line-height: 1.5;">
-                <b>Drive Coach Notes:</b> Robot starts on tile seam facing audience wall. Immediately follows Pedro bezier curve to score specimen before parking in observation zone.
+              <div id="cs-scout-notes" style="margin-top: 14px; font-size: 12px; color: #57606a; line-height: 1.5;">
+                <b>Drive Coach Notes:</b> --
               </div>
             </div>
           </div>
@@ -165,26 +413,7 @@
             <div class="cs-card">
               <div class="cs-card-header">Match Action Milestones & Key Events</div>
               <div id="cs-milestones-list" class="cs-milestones">
-                <div class="cs-milestone-item">
-                  <span><b>🏁 Match Start (PLAY command)</b></span>
-                  <span class="cs-milestone-time">T+0.00s</span>
-                </div>
-                <div class="cs-milestone-item">
-                  <span><b>🚀 Pedro Path Acceleration Phase</b></span>
-                  <span class="cs-milestone-time">T+0.20s</span>
-                </div>
-                <div class="cs-milestone-item">
-                  <span><b>⚡ Peak Velocity Achieved</b></span>
-                  <span class="cs-milestone-time">T+0.52s</span>
-                </div>
-                <div class="cs-milestone-item">
-                  <span><b>🎯 Target Waypoint Reached & Position Hold</b></span>
-                  <span class="cs-milestone-time">T+0.86s</span>
-                </div>
-                <div class="cs-milestone-item">
-                  <span><b>⏹️ Auto Sequence Complete / Parked</b></span>
-                  <span class="cs-milestone-time">T+0.98s</span>
-                </div>
+                <div class="cs-milestone-item"><span>Loading recorded milestones...</span></div>
               </div>
             </div>
           </div>
@@ -194,7 +423,6 @@
 
     document.body.appendChild(modal);
 
-    // Tab switcher
     modal.querySelectorAll(".cs-tab").forEach(tab => {
       tab.addEventListener("click", () => {
         modal.querySelectorAll(".cs-tab").forEach(t => t.classList.remove("active"));
@@ -205,12 +433,10 @@
       });
     });
 
-    // Close on click backdrop
     modal.addEventListener("click", (e) => {
       if (e.target === modal) closeCompetitionSuite();
     });
 
-    // Close on Escape
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && modal && modal.classList.contains("active")) {
         closeCompetitionSuite();
@@ -218,8 +444,63 @@
     });
   }
 
+  function populatePartnerDropdown() {
+    const select = document.querySelector("#cs-partner-select");
+    if (!select) return;
+    const prevVal = select.value;
+    select.innerHTML = "";
+
+    const manifest = window.manifestData;
+    const activeBranch = document.querySelector("#team-select")?.value;
+    const activeRec = document.querySelector("#recording-select")?.value;
+
+    if (window.customFileVirtualPaths && window.customFileVirtualPaths.size > 0) {
+      const grp = document.createElement("optgroup");
+      grp.label = "Imported Runs";
+      window.customFileVirtualPaths.forEach((vPath, fileName) => {
+        const opt = document.createElement("option");
+        opt.value = "vpath::" + vPath;
+        opt.textContent = `📁 ${fileName}`;
+        grp.appendChild(opt);
+      });
+      select.appendChild(grp);
+    }
+
+    if (manifest && manifest.branches) {
+      Object.entries(manifest.branches).forEach(([branchName, info]) => {
+        if (!info || !info.recordings || info.recordings.length === 0) return;
+        const grp = document.createElement("optgroup");
+        grp.label = branchName;
+        const folder = branchFolder(info);
+        info.recordings.forEach(rec => {
+          const opt = document.createElement("option");
+          opt.value = `url::recordings/${folder}${rec.file}`;
+          opt.textContent = `${rec.label || rec.file} (${branchName})`;
+          grp.appendChild(opt);
+        });
+        select.appendChild(grp);
+      });
+    }
+
+    if (select.options.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "url::recordings/feature__team-3-setup/auto-Team3AutonomousOpMode.json";
+      opt.textContent = "Team3AutonomousOpMode (default)";
+      select.appendChild(opt);
+    }
+
+    if (prevVal && Array.from(select.options).some(o => o.value === prevVal)) {
+      select.value = prevVal;
+    } else {
+      // Pick first partner route that isn't the currently open recording
+      const alt = Array.from(select.options).find(o => !activeRec || !o.value.endsWith("/" + activeRec));
+      if (alt) select.value = alt.value;
+    }
+  }
+
   function openCompetitionSuite() {
     initCompetitionSuite();
+    populatePartnerDropdown();
     modal.classList.add("active");
     loadActiveRecordingAnalysis();
   }
@@ -228,167 +509,218 @@
     if (modal) modal.classList.remove("active");
   }
 
-  function loadActiveRecordingAnalysis() {
+  async function loadActiveRecordingAnalysis() {
+    const teamSelect = document.querySelector("#team-select");
     const recSelect = document.querySelector("#recording-select");
-    const activeFile = recSelect ? recSelect.value : "auto-Team3PedroPilotAutoOpMode.json";
+    const branchName = teamSelect ? teamSelect.value : "feature/team-3-setup";
+    const activeFile = recSelect ? recSelect.value : "auto-Team3AutonomousOpMode.json";
+    const displayBranch = branchName.startsWith("custom_") ? "Imported" : branchName;
 
-    const badge = document.querySelector("#cs-active-run-badge");
-    if (badge) badge.textContent = "Active: " + activeFile.replace(/^auto-/, "").replace(/\.json$/, "");
+    try {
+      let data = decodeRecordingFromCache(window.currentActiveVirtualPath);
+      if (!data) {
+        const info = window.manifestData?.branches?.[branchName];
+        const url = info ? `recordings/${branchFolder(info)}${activeFile}` : `recordings/${activeFile}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
+        data = await res.json();
+      }
+      currentRecordingData = data;
+      const opMode = data?.header?.opMode || activeFile.replace(/^auto-/, "").replace(/\.json$/, "");
+      currentRunMeta = { branch: displayBranch, opMode, file: activeFile };
 
-    fetch("recordings/" + activeFile)
-      .then(res => res.json())
-      .then(data => {
-        currentRecordingData = data;
-        analyzeRecording(data);
-      })
-      .catch(err => {
-        console.warn("Could not load recording JSON for competition analysis:", err);
-      });
+      const badge = document.querySelector("#cs-active-run-badge");
+      if (badge) badge.textContent = `${opMode} · ${displayBranch}`;
+
+      analyzeRecording(data);
+    } catch (err) {
+      console.warn("Could not load recording JSON for competition analysis:", err);
+    }
   }
 
   function analyzeRecording(data) {
     if (!data || !data.loops || data.loops.length === 0) return;
+    const stats = extractRunStats(data);
+    computedRunStats = stats;
 
-    const loops = data.loops;
-    const firstLoop = loops[0];
-    const lastLoop = loops[loops.length - 1];
-
-    const totalSeconds = (lastLoop.matchTimeSeconds || lastLoop.sinceInitSeconds || 1.0);
-    const duration = Math.min(30.0, Math.max(0.2, totalSeconds));
-    const buffer = Math.max(0, 30.0 - duration);
-
-    // Distance calculation
-    let totalDistInches = 0;
-    let maxSpeed = 0;
-    for (let i = 1; i < loops.length; i++) {
-      const p0 = loops[i - 1].pose;
-      const p1 = loops[i].pose;
-      if (p0 && p1) {
-        const dx = (p1.xInches || 0) - (p0.xInches || 0);
-        const dy = (p1.yInches || 0) - (p0.yInches || 0);
-        const step = Math.sqrt(dx * dx + dy * dy);
-        totalDistInches += step;
-        const dt = (loops[i].sinceInitSeconds || 0) - (loops[i - 1].sinceInitSeconds || 0);
-        if (dt > 0.001) {
-          const speed = (step / dt) / 12.0; // ft/s
-          if (speed > maxSpeed) maxSpeed = speed;
-        }
-      }
-    }
-
-    const startX = (firstLoop.pose ? firstLoop.pose.xInches : 0) || 0;
-    const startY = (firstLoop.pose ? firstLoop.pose.yInches : 0) || 0;
-    const endX = (lastLoop.pose ? lastLoop.pose.xInches : 0) || 0;
-    const endY = (lastLoop.pose ? lastLoop.pose.yInches : 0) || 0;
-    const dispInches = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
-
-    // Point projection: specimen placement + park
-    let projectedPoints = 13;
-    if (dispInches < 12) projectedPoints = 3; // minimal park
-
-    // Populate Tab 1
     const setElem = (id, val) => {
       const el = document.querySelector("#" + id);
       if (el) el.textContent = val;
     };
 
-    setElem("cs-metric-score", projectedPoints + " pts");
-    setElem("cs-score-pill", "Projected: " + projectedPoints + " Pts");
-    setElem("cs-metric-time", duration.toFixed(2) + " s");
-    setElem("cs-metric-buffer", buffer.toFixed(2) + "s buffer before bell");
-    setElem("cs-metric-dist", (totalDistInches / 12.0).toFixed(2) + " ft");
-    setElem("cs-metric-disp", (dispInches / 12.0).toFixed(2) + " ft straight-line");
-    setElem("cs-metric-speed", (maxSpeed || 5.5).toFixed(2) + " ft/s");
+    const allianceTitle = stats.alliance === "blue" ? "Blue" : "Red";
+    const driveFwd = stats.header?.driveModel?.forward?.value;
+    const speedSub = driveFwd
+      ? `${stats.maxSpeedInPerSec.toFixed(1)} in/s (Rated ${Number(driveFwd).toFixed(1)} in/s)`
+      : `${stats.maxSpeedInPerSec.toFixed(1)} in/s`;
+
+    // Tab 1: BIOBUZZ Score & Timing
+    setElem("cs-metric-score", `${stats.points} pts`);
+    setElem("cs-score-pill", `${allianceTitle} Alliance: ${stats.points} Pts`);
+    setElem("cs-metric-breakdown", stats.breakdownText);
+    setElem("cs-metric-time", `${stats.effectiveEnd.toFixed(2)} s`);
+    setElem("cs-metric-buffer", `${stats.spareBuffer.toFixed(2)}s buffer before buzzer`);
+    setElem("cs-metric-dist", `${(stats.totalDistInches / 12.0).toFixed(2)} ft`);
+    setElem("cs-metric-disp", `${(stats.dispInches / 12.0).toFixed(2)} ft straight-line`);
+    setElem("cs-metric-speed", `${stats.maxSpeedFtPerSec.toFixed(2)} ft/s`);
+    setElem("cs-metric-speed-sub", speedSub);
 
     const progress = document.querySelector("#cs-time-progress");
-    if (progress) progress.style.width = Math.min(100, (duration / 30.0) * 100) + "%";
-    setElem("cs-time-finish-label", duration.toFixed(2) + "s FINISH");
+    if (progress) progress.style.width = Math.min(100, (stats.effectiveEnd / 30.0) * 100) + "%";
+    setElem("cs-time-finish-label", `${stats.effectiveEnd.toFixed(2)}s ACTIVE END`);
 
-    // Populate Tab 4 (Scouting Card)
-    const teamSelect = document.querySelector("#team-select");
-    const teamName = teamSelect ? teamSelect.options[teamSelect.selectedIndex].text.split(" · ")[0] : "Team 3";
-    const recSelect = document.querySelector("#recording-select");
-    const routeName = recSelect ? recSelect.value.replace(/^auto-/, "").replace(/\.json$/, "") : "AutoOpMode";
+    // Tab 4: BIOBUZZ Pit Strategy Sheet
+    const robotName = stats.header?.driveModel?.name || "Robot";
+    const startDeg = (((stats.firstPose.headingRadians || 0) * 180) / Math.PI).toFixed(1);
+    const endDeg = (((stats.lastPose.headingRadians || 0) * 180) / Math.PI).toFixed(1);
+    const cams = (stats.header?.cameras || []).map(c => c.name).join(", ") || "None";
 
-    setElem("cs-scout-team", "FTC " + teamName);
-    setElem("cs-scout-route", "Autonomous: " + routeName);
-    setElem("cs-scout-start", `X: ${startX.toFixed(2)} in, Y: ${startY.toFixed(2)} in`);
-    setElem("cs-scout-end", `X: ${endX.toFixed(2)} in, Y: ${endY.toFixed(2)} in`);
-    setElem("cs-scout-time", `${duration.toFixed(2)}s (${buffer.toFixed(2)}s spare buffer)`);
-    setElem("cs-scout-points", `${projectedPoints} Points (High Chamber + Observation Park)`);
+    setElem("cs-scout-team", `${robotName} · ${currentRunMeta.branch}`);
+    setElem("cs-scout-route", `Autonomous: ${currentRunMeta.opMode} (${allianceTitle} Alliance)`);
+    setElem("cs-scout-start", `X: ${(stats.firstPose.xInches || 0).toFixed(1)} in, Y: ${(stats.firstPose.yInches || 0).toFixed(1)} in, H: ${startDeg}°`);
+    setElem("cs-scout-end", `X: ${(stats.lastPose.xInches || 0).toFixed(1)} in, Y: ${(stats.lastPose.yInches || 0).toFixed(1)} in, H: ${endDeg}°`);
+    setElem("cs-scout-time", `${stats.effectiveEnd.toFixed(2)}s active (${stats.spareBuffer.toFixed(2)}s spare buffer)`);
+    setElem("cs-scout-points", `${stats.points} pts — ${stats.breakdownText}`);
+    setElem(
+      "cs-scout-clearance",
+      `HIVE tips: ${stats.totalHiveTips} | Shots launched: ${stats.launchedCount} | Vision (${cams}): ${stats.aprilTagFrames} frames | Collisions: ${stats.events.length}`
+    );
+
+    const notesEl = document.querySelector("#cs-scout-notes");
+    if (notesEl) {
+      const quadX = (stats.firstPose.xInches || 0) >= 0 ? "Audience (+X)" : "Far (-X)";
+      const sideY = stats.alliance === "blue" ? "Blue (+Y)" : "Red (-Y)";
+      notesEl.innerHTML =
+        `<b>Drive Coach Notes:</b> Starts in <b>${sideY} ${quadX}</b> zone, travels ${(stats.totalDistInches / 12.0).toFixed(1)} ft` +
+        (stats.plannedPathCount > 0 ? ` across ${stats.plannedPathCount} Pedro spline updates` : "") +
+        `. Completes active sequence in ${stats.effectiveEnd.toFixed(2)}s.` +
+        (stats.events.length > 0 ? ` Note: ${stats.events.length} field/wall contact event(s) logged.` : " Clean path with zero wall/obstacle collisions.");
+    }
+
+    // Tab 5: Dynamic Timeline
+    const listEl = document.querySelector("#cs-milestones-list");
+    if (listEl) {
+      const milestones = buildTimelineMilestones(data, stats);
+      listEl.innerHTML = milestones
+        .map(m => `
+          <div class="cs-milestone-item">
+            <span><b>${escapeHtml(m.icon)} ${escapeHtml(m.label)}</b></span>
+            <span class="cs-milestone-time">T+${m.t.toFixed(2)}s</span>
+          </div>
+        `)
+        .join("");
+    }
+
+    calculateStressImpact();
   }
 
-  function runCollisionAnalysis() {
+  async function runCollisionAnalysis() {
     const partnerSelect = document.querySelector("#cs-partner-select");
-    const partnerFile = partnerSelect ? partnerSelect.value : "auto-TeamAAutoOpMode.json";
+    const selection = partnerSelect ? partnerSelect.value : "";
     const resultBox = document.querySelector("#cs-collision-result");
+    if (!resultBox || !selection) return;
 
-    fetch("recordings/" + partnerFile)
-      .then(res => res.json())
-      .then(pData => {
-        partnerRecordingData = pData;
-        if (!currentRecordingData || !pData.loops) {
-          resultBox.className = "cs-alert-box cs-alert-success";
-          resultBox.innerHTML = "<span>✅ <b>Safe Clearance:</b> Default distance > 40 in. No crossing detected.</span>";
-          return;
+    resultBox.className = "cs-alert-box";
+    resultBox.innerHTML = "<span>Checking multi-robot clearance...</span>";
+
+    try {
+      let pData = null;
+      if (selection.startsWith("vpath::")) {
+        pData = decodeRecordingFromCache(selection.slice("vpath::".length));
+      } else {
+        const url = selection.startsWith("url::") ? selection.slice("url::".length) : selection;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        pData = await res.json();
+      }
+
+      if (!currentRecordingData || !currentRecordingData.loops?.length || !pData?.loops?.length) {
+        resultBox.className = "cs-alert-box cs-alert-warning";
+        resultBox.innerHTML = "<span>⚠️ Active or partner recording has no loop pose data to compare.</span>";
+        return;
+      }
+
+      const loops1 = currentRecordingData.loops;
+      const loops2 = pData.loops;
+      let j = 0;
+      let minCenterDist = Infinity;
+      let minTime = 0;
+      let colX = 0;
+      let colY = 0;
+
+      for (let i = 0; i < loops1.length; i++) {
+        const p1 = loops1[i].pose;
+        if (!p1) continue;
+        const t1 = typeof loops1[i].sinceInitSeconds === "number" ? loops1[i].sinceInitSeconds : i * 0.02;
+        while (j + 1 < loops2.length && (loops2[j + 1].sinceInitSeconds || 0) <= t1) {
+          j++;
         }
+        const p2 = loops2[j].pose;
+        if (!p2) continue;
 
-        const loops1 = currentRecordingData.loops;
-        const loops2 = pData.loops;
-        const minLen = Math.min(loops1.length, loops2.length);
-
-        let minDistanceInches = 9999;
-        let minTime = 0;
-        let colX = 0, colY = 0;
-
-        for (let i = 0; i < minLen; i++) {
-          const p1 = loops1[i].pose;
-          const p2 = loops2[i].pose;
-          if (p1 && p2) {
-            const dist = Math.sqrt((p1.xInches - p2.xInches) ** 2 + (p1.yInches - p2.yInches) ** 2);
-            if (dist < minDistanceInches) {
-              minDistanceInches = dist;
-              minTime = loops1[i].sinceInitSeconds || 0;
-              colX = (p1.xInches + p2.xInches) / 2;
-              colY = (p1.yInches + p2.yInches) / 2;
-            }
-          }
+        const dist = Math.hypot((p1.xInches || 0) - (p2.xInches || 0), (p1.yInches || 0) - (p2.yInches || 0));
+        if (dist < minCenterDist) {
+          minCenterDist = dist;
+          minTime = typeof loops1[i].matchTimeSeconds === "number" ? loops1[i].matchTimeSeconds : t1;
+          colX = ((p1.xInches || 0) + (p2.xInches || 0)) / 2;
+          colY = ((p1.yInches || 0) + (p2.yInches || 0)) / 2;
         }
+      }
 
-        if (minDistanceInches < 22.0) {
-          resultBox.className = "cs-alert-box cs-alert-danger";
-          resultBox.innerHTML = `<span>🚨 <b>COLLISION RISK DETECTED:</b> Minimum robot clearance is <b>${minDistanceInches.toFixed(1)} inches</b> at T+${minTime.toFixed(2)}s near tile (X: ${colX.toFixed(1)} in, Y: ${colY.toFixed(1)} in). Adjust starting waypoint or add 1.5s wait step!</span>`;
-        } else if (minDistanceInches < 34.0) {
-          resultBox.className = "cs-alert-box cs-alert-warning";
-          resultBox.innerHTML = `<span>⚠️ <b>CLOSE PROXIMITY CLEARANCE:</b> Closest point is <b>${minDistanceInches.toFixed(1)} inches</b> at T+${minTime.toFixed(2)}s. Robots pass close but clear bumpers safely.</span>`;
-        } else {
-          resultBox.className = "cs-alert-box cs-alert-success";
-          resultBox.innerHTML = `<span>✅ <b>EXCELLENT ALLIANCE CLEARANCE:</b> Minimum separation distance is <b>${minDistanceInches.toFixed(1)} inches</b> at T+${minTime.toFixed(2)}s. Safe for parallel autonomous execution!</span>`;
-        }
-      })
-      .catch(err => {
+      const partnerName = escapeHtml(pData.header?.opMode || "Partner Auto");
+      const alignedClearance = minCenterDist - 18.0; // Two 18x18 robots side-by-side touch at 18" center-to-center
+
+      if (minCenterDist < 19.5) {
+        resultBox.className = "cs-alert-box cs-alert-danger";
+        resultBox.innerHTML = `<span>🚨 <b>COLLISION DETECTED vs ${partnerName}:</b> Centers pass within <b>${minCenterDist.toFixed(1)}"</b> (${alignedClearance.toFixed(1)}" bumper gap for 18×18 chassis) at <b>T+${minTime.toFixed(2)}s</b> near (${colX.toFixed(1)}", ${colY.toFixed(1)}"). Add a delay or stagger lanes.</span>`;
+      } else if (minCenterDist < 26.5) {
+        resultBox.className = "cs-alert-box cs-alert-warning";
+        resultBox.innerHTML = `<span>⚠️ <b>TIGHT CORNER CLEARANCE vs ${partnerName}:</b> Minimum center separation is <b>${minCenterDist.toFixed(1)}"</b> (${alignedClearance.toFixed(1)}" side gap; diagonal corners reach 25.5") at <b>T+${minTime.toFixed(2)}s</b> near (${colX.toFixed(1)}", ${colY.toFixed(1)}").</span>`;
+      } else {
         resultBox.className = "cs-alert-box cs-alert-success";
-        resultBox.innerHTML = "<span>✅ <b>Safe Clearance:</b> Autonomous routes operate on opposite field quadrants.</span>";
-      });
+        resultBox.innerHTML = `<span>✅ <b>SAFE ALLIANCE CLEARANCE vs ${partnerName}:</b> Minimum separation is <b>${minCenterDist.toFixed(1)}"</b> (${alignedClearance.toFixed(1)}" bumper clearance) at <b>T+${minTime.toFixed(2)}s</b> near (${colX.toFixed(1)}", ${colY.toFixed(1)}").</span>`;
+      }
+    } catch (err) {
+      resultBox.className = "cs-alert-box cs-alert-warning";
+      resultBox.innerHTML = `<span>⚠️ Could not compare partner recording (${escapeHtml(err.message)}).</span>`;
+    }
   }
 
   function calculateStressImpact() {
     const battSelect = document.querySelector("#cs-stress-battery");
     const gripSelect = document.querySelector("#cs-stress-grip");
     const output = document.querySelector("#cs-stress-output");
+    if (!output) return;
 
     const v = parseFloat(battSelect ? battSelect.value : "12.5");
     const grip = parseFloat(gripSelect ? gripSelect.value : "1.0");
-
     const speedRatio = v / 12.5;
-    const slideMultiplier = (1.0 / grip).toFixed(2);
+    const stopDistRatio = (1.0 / grip) * speedRatio;
+    const stats = computedRunStats;
 
-    if (v < 11.0 || grip < 0.75) {
+    if (!stats) {
+      output.className = "cs-alert-box cs-alert-success";
+      output.innerHTML = "<span>Select a recording to compute voltage & grip stress impact.</span>";
+      return;
+    }
+
+    const baseTime = stats.effectiveEnd > 0 ? stats.effectiveEnd : stats.runEnd;
+    const projectedTime = baseTime / speedRatio;
+    const speedDropPct = Math.round((1 - speedRatio) * 100);
+    const slideIncreasePct = Math.round((1.0 / grip - 1) * 100);
+    const overTimeRisk = projectedTime > 29.0;
+    const launcherNote = stats.hasLauncherActivity
+      ? (v < 11.8
+          ? ` Launcher wheel RPM sags ~${speedDropPct}%, so HIVE shots may drop short unless using velocity PID / voltage compensation.`
+          : " Launcher velocity PID has headroom at this voltage.")
+      : "";
+
+    if (overTimeRisk || v < 11.2 || grip < 0.75) {
       output.className = "cs-alert-box cs-alert-warning";
-      output.innerHTML = `<span>⚠️ <b>High Field Variation Detected:</b> Motor top speed reduced by <b>${Math.round((1 - speedRatio) * 100)}%</b>, and deceleration stopping distance increased by <b>${Math.round((slideMultiplier - 1) * 100)}%</b>. Pedro Pathing closed-loop correction will increase motor effort to compensate. Ensure battery is above 12.0V before queuing!</span>`;
+      output.innerHTML = `<span>⚠️ <b>Stress Warning (${v.toFixed(1)}V, ${Math.round(grip * 100)}% grip):</b> Top speed drops <b>-${speedDropPct}%</b> and braking/corner slide expands <b>+${slideIncreasePct}%</b> (stop factor ×${stopDistRatio.toFixed(2)}). Projected completion stretches from <b>${baseTime.toFixed(2)}s → ${projectedTime.toFixed(2)}s</b>.${launcherNote}</span>`;
     } else {
       output.className = "cs-alert-box cs-alert-success";
-      output.innerHTML = `<span>🛡️ <b>Optimal Autonomous Conditions:</b> Speed variance within <b>${Math.round((1 - speedRatio) * 100)}%</b>. Pedro closed-loop Foresight follower maintains high-accuracy waypoint tracking.</span>`;
+      output.innerHTML = `<span>🛡️ <b>Healthy Match Margin (${v.toFixed(1)}V, ${Math.round(grip * 100)}% grip):</b> Completion shifts from <b>${baseTime.toFixed(2)}s → ${projectedTime.toFixed(2)}s</b> (${Math.max(0, 30 - projectedTime).toFixed(2)}s buffer before buzzer), with +${slideIncreasePct}% slip variance well inside closed-loop bounds.${launcherNote}</span>`;
     }
   }
 
@@ -396,11 +728,9 @@
     window.print();
   }
 
-  // Export to global scope
   window.openCompetitionSuite = openCompetitionSuite;
   window.closeCompetitionSuite = closeCompetitionSuite;
   window.runCollisionAnalysis = runCollisionAnalysis;
   window.calculateStressImpact = calculateStressImpact;
   window.printScoutingCard = printScoutingCard;
 })();
-

@@ -503,6 +503,7 @@
         console.warn("Could not load manifest.json, using fallback:", e);
         manifestData = fallbackManifest;
       }
+      window.manifestData = manifestData;
 
       populateBranches(manifestData);
       const initialBranch = teamSelect ? teamSelect.value : manifestData.defaultBranch;
@@ -709,13 +710,25 @@
       const selectedBranch = (teamSelect && teamSelect.value && !teamSelect.value.startsWith("custom_"))
         ? teamSelect.value
         : (manifestData?.defaultBranch || "feature/team-3-setup");
-      const className = val.replace(/^auto-/, "").replace(/\.json$/, "");
-      let targetPath = className
+      let className = val.replace(/^auto-/, "").replace(/\.json$/, "");
+
+      try {
+        const activeBytes = window.virtualFileCache && window.currentActiveVirtualPath
+          ? window.virtualFileCache.get(window.currentActiveVirtualPath)
+          : null;
+        if (activeBytes) {
+          const preview = new TextDecoder().decode(activeBytes.slice(0, 2048));
+          const m = preview.match(/"opMode"\s*:\s*"([A-Za-z0-9_]+)"/);
+          if (m && m[1]) className = m[1];
+        }
+      } catch (_) {}
+
+      const targetPath = className
         ? `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/${className}.java`
         : "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autonomous/Team3AutonomousOpMode.java";
 
       if (window.openCodeInspector) {
-        window.openCodeInspector(targetPath, selectedBranch);
+        window.openCodeInspector(targetPath, selectedBranch, className);
       }
     }
   </script>

@@ -45,6 +45,8 @@
   let currentBranch = DEFAULT_BRANCH;
   let currentCategory = "autonomous";
   let currentFilePath = PRESET_FILES.autonomous[0].path;
+  let pendingClassName = null;
+  const branchTrees = new Map();
   let dynamicAllFiles = [];
   let currentFileCode = "";
 
@@ -174,21 +176,22 @@
 
   async function populateBranches() {
     const select = document.getElementById("ci-branch-select");
+    if (!select) return;
     select.innerHTML = "";
 
-    let branches = [...FALLBACK_BRANCHES];
+    const manifestBranches = Object.keys(window.manifestData?.branches || {});
+    let branches = Array.from(new Set([...manifestBranches, ...FALLBACK_BRANCHES]));
 
     try {
       const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/branches`);
       if (res.ok) {
         const data = await res.json();
-        branches = data.map((b) => b.name);
+        branches = Array.from(new Set([...data.map((b) => b.name), ...manifestBranches]));
       }
     } catch (e) {
-      console.warn("[CodeInspector] Using fallback branches list due to API limit:", e);
+      console.warn("[CodeInspector] Using manifest/fallback branches list:", e);
     }
 
-    // Ensure default branch is at top or present
     if (!branches.includes(DEFAULT_BRANCH)) {
       branches.unshift(DEFAULT_BRANCH);
     }
@@ -202,19 +205,43 @@
     });
   }
 
+  function isAutonomousFile(path) {
+    const lower = path.toLowerCase();
+    const base = path.split("/").pop().replace(/\.java$/i, "").toLowerCase();
+    if (lower.includes("/autonomous/")) return true;
+    if (base.includes("teleop")) return false;
+    return /auto|hiveauto|simpleleave|simpleshoot|simplershoot|loadingzone/.test(base);
+  }
+
+  function isSubsystemFile(path) {
+    if (isAutonomousFile(path)) return false;
+    return /\/(robots|subsystems|hardware|pedro|common|core|vision|localization)\//i.test(path);
+  }
+
+  function getFilteredFilesForCategory(category) {
+    if (dynamicAllFiles.length === 0) {
+      return category === "all"
+        ? [...PRESET_FILES.autonomous, ...PRESET_FILES.subsystems]
+        : (PRESET_FILES[category] || []);
+    }
+    if (category === "all") return dynamicAllFiles;
+    if (category === "autonomous") {
+      const list = dynamicAllFiles.filter((f) => isAutonomousFile(f.path));
+      return list.length > 0 ? list : PRESET_FILES.autonomous;
+    }
+    if (category === "subsystems") {
+      const list = dynamicAllFiles.filter((f) => isSubsystemFile(f.path));
+      return list.length > 0 ? list : PRESET_FILES.subsystems;
+    }
+    return dynamicAllFiles;
+  }
+
   function populateFileDropdown() {
     const select = document.getElementById("ci-file-select");
+    if (!select) return;
     select.innerHTML = "";
 
-    let fileList = [];
-    if (currentCategory === "all") {
-      fileList = dynamicAllFiles.length > 0 ? dynamicAllFiles : [
-        ...PRESET_FILES.autonomous,
-        ...PRESET_FILES.subsystems
-      ];
-    } else {
-      fileList = PRESET_FILES[currentCategory] || [];
-    }
+    const fileList = getFilteredFilesForCategory(currentCategory);
 
     fileList.forEach((f) => {
       const opt = document.createElement("option");
@@ -230,11 +257,37 @@
     }
   }
 
+  function matchRequestedFileInTree(files, className, fallbackPath) {
+    if (!files || files.length === 0) return null;
+    if (className) {
+      const exactFile = (className + ".java").toLowerCase();
+      const hit = files.find((f) => f.path.split("/").pop().toLowerCase() === exactFile);
+      if (hit) return hit.path;
+    }
+    if (fallbackPath) {
+      const hit = files.find((f) => f.path === fallbackPath);
+      if (hit) return hit.path;
+    }
+    return null;
+  }
+
   async function onBranchChanged(forceRefresh = false) {
     fetchCommitDetails();
-    if (currentCategory === "all" || forceRefresh) {
-      fetchAllFilesTree();
+    await fetchAllFilesTree(forceRefresh);
+    if (pendingClassName || currentFilePath) {
+      const matched = matchRequestedFileInTree(dynamicAllFiles, pendingClassName, currentFilePath);
+      if (matched) {
+        currentFilePath = matched;
+        currentCategory = isAutonomousFile(matched)
+          ? "autonomous"
+          : (isSubsystemFile(matched) ? "subsystems" : "all");
+        document.querySelectorAll(".ci-tab").forEach((t) => {
+          t.classList.toggle("active", t.dataset.cat === currentCategory);
+        });
+      }
+      pendingClassName = null;
     }
+    populateFileDropdown();
     loadSelectedFile();
   }
 
@@ -269,21 +322,24 @@
     }
   }
 
-  async function fetchAllFilesTree() {
+  async function fetchAllFilesTree(forceRefresh = false) {
+    if (!forceRefresh && branchTrees.has(currentBranch)) {
+      dynamicAllFiles = branchTrees.get(currentBranch);
+      return;
+    }
+    dynamicAllFiles = [];
     try {
       const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/git/trees/${encodeURIComponent(currentBranch)}?recursive=1`);
       if (res.ok) {
         const data = await res.json();
-        dynamicAllFiles = (data.tree || [])
+        const files = (data.tree || [])
           .filter((item) => item.type === "blob" && item.path.endsWith(".java"))
           .map((item) => ({
             name: item.path.split("/").pop() + " (" + item.path.replace("TeamCode/src/main/java/org/firstinspires/ftc/teamcode/", "") + ")",
             path: item.path
           }));
-
-        if (currentCategory === "all") {
-          populateFileDropdown();
-        }
+        branchTrees.set(currentBranch, files);
+        dynamicAllFiles = files;
       }
     } catch (e) {
       console.warn("[CodeInspector] Failed to fetch git tree:", e);
@@ -334,31 +390,30 @@
     }
   }
 
-  function openCodeInspector(requestedFilePath, requestedBranch) {
+  async function openCodeInspector(requestedFilePath, requestedBranch, requestedClassName) {
     createInspectorDOM();
     const modal = document.getElementById("code-inspector-modal");
+    const select = document.getElementById("ci-branch-select");
     if (requestedBranch) {
       currentBranch = requestedBranch;
-      document.getElementById("ci-branch-select").value = requestedBranch;
+      if (select && !Array.from(select.options).some((o) => o.value === requestedBranch)) {
+        await populateBranches();
+      }
+      if (select) select.value = requestedBranch;
     }
+    pendingClassName = requestedClassName || null;
     if (requestedFilePath) {
       currentFilePath = requestedFilePath;
-      // Match category
-      if (PRESET_FILES.autonomous.some((f) => f.path === requestedFilePath)) {
-        currentCategory = "autonomous";
-      } else if (PRESET_FILES.subsystems.some((f) => f.path === requestedFilePath)) {
-        currentCategory = "subsystems";
-      } else {
-        currentCategory = "all";
-      }
+      currentCategory = isAutonomousFile(requestedFilePath)
+        ? "autonomous"
+        : (isSubsystemFile(requestedFilePath) ? "subsystems" : "all");
       document.querySelectorAll(".ci-tab").forEach((t) => {
         t.classList.toggle("active", t.dataset.cat === currentCategory);
       });
-      populateFileDropdown();
     }
 
     modal.classList.add("active");
-    onBranchChanged();
+    await onBranchChanged();
   }
 
   function closeCodeInspector() {
